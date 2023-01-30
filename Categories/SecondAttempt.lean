@@ -1,5 +1,7 @@
 import Mathlib.Init.Algebra.Order
 
+set_option linter.unusedVariables false
+
 class CatSystem (Cat : Type) extends Preorder Cat :=
   ( HasLAdj : ∀ (C D : Cat), C ≤ D → Prop )
   ( HasRAdj : ∀ (C D : Cat), C ≤ D → Prop )
@@ -61,6 +63,12 @@ nonrec def Obj.RAdj (C D : Cat) (h : C ≤ D) (H : HasRAdj C D h) (X : Obj D) : 
 nonrec def Obj.bot (C : Cat) : Obj C :=
   corepr (CoreprObj.bot C)
 
+nonrec def Obj.top (C : Cat) : Obj C :=
+  notCorepr (NotCoreprObj.top C)
+
+nonrec def Obj.var (C : Cat) (n : ℕ) : Obj C :=
+  notCorepr (NotCoreprObj.var C n)
+
 inductive Emb {C : Cat} : Obj C → Obj C → Type
 | inl : ∀ {X Y : Obj C}, Emb X (coprod X Y)
 | inr : ∀ {X Y : Obj C}, Emb Y (coprod X Y)
@@ -91,5 +99,13 @@ inductive HomRepr : ∀ {C : Cat}, NotCoreprObj C → ReprObj C → Type
     (f : Hom (app C D h (notCorepr X)) Y) : HomRepr X (ReprObj.RAdj C D h H Y)
 
 inductive Hom : {C : Cat} → Obj C → Obj C → Type
+  | projComp : ∀ {C : Cat} {X Y Z : Obj C} (f : Proj X Y) (g : Hom Y Z), Hom X Z
+  | CompEmb : ∀ {C : Cat} {X : NotCoreprObj C} {Y Z : Obj C}
+      (f : Hom (notCorepr X) Y) (g : Emb Y Z), Hom (notCorepr X) Z
+  | var : ∀ {C : Cat} {X Y : ℕ} (n : ℕ), Hom (var C X) (var C Y)
+  | id : ∀ {C : Cat} (X : Obj C), Hom X X
+  | top_mk : ∀ {C : Cat} {X : Obj C}, Hom X (top C)
+  | app : ∀ {C D : Cat} (h : C ≤ D) {X : Obj C} {Y : Obj C}
+      (f : Hom X Y), Hom (app C D h X) (app C D h Y)
 
 end
