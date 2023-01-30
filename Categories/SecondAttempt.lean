@@ -119,6 +119,11 @@ inductive Hom : {C : Cat} → Obj C → Obj C → Type
 
 end
 
+/-- Function checks if `f` and `g` are of the form `f = f₁ ; f₂`, `g = g₁ ; g₂` and
+  `f₁ = g₁`  -/
+def leftEq : ∀ {C : Cat}, {X Y : Obj C} → Hom X Y → Hom X Y → Option (Σ Z : Obj C, Hom X Z × Hom Z Y × Hom Z Y)
+| _, _, _, Hom.projComp f₁ g₁, Hom.projComp f₂ g₂ => _
+
 mutual
 
 def coreprComp : ∀ {C : Cat} {X : CoreprObj C} {Y Z : Obj C}, HomCorepr X Y → Hom Y Z → HomCorepr X Z
