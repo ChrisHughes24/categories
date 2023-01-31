@@ -48,6 +48,7 @@ open Obj
 nonrec def Obj.coprod {C : Cat} (X Y : Obj C) : Obj C :=
   corepr (CoreprObj.coprod X Y)
 
+@[match_pattern]
 nonrec def Obj.prod {C : Cat} (X Y : Obj C) : Obj C :=
   Obj.repr (ReprObj.prod X Y)
 
@@ -96,7 +97,7 @@ inductive Hom : {C : Cat} → Obj C → Obj C → Type
       (f : Hom X Y) (g : Emb Y Z), Hom X Z
   | var : ∀ {C : Cat} {X Y : ℕ} (n : ℕ), Hom (var C X) (var C Y)
   | id : ∀ {C : Cat} (X : Obj C), Hom X X
-  | top_mk : ∀ {C : Cat} {X : Obj C}, Hom X (top C)
+  | topMk : ∀ {C : Cat} {X : Obj C}, Hom X (top C)
   | map : ∀ {C D : Cat} (F : Func C D) {X : Obj C} {Y : Obj C}
       (f : Hom X Y), Hom (app C D F X) (app C D F Y)
   | corepr : ∀ {C : Cat} {X : CoreprObj C} {Y : Obj C} (f : HomCorepr X Y), Hom (corepr X) Y
@@ -107,20 +108,12 @@ end
 
 /-
 Normal forms
-- If it can be written as `top_mk X ; f` or `top_mk` then it is.
-- If it can be written as `f ; bot_mk` then it is, except when the first rule applies.
-- If it can be written as `
+- If it can be written as `top_mk ; f` then it is.
+- If it can be written as `f ; corepr_mk` then it is unless the first rule applies.
+- If it can be written as `repr_mk ; f` then it is unless one of the first two rules apply.
+- Not sure what else there is.
 -/
-
-
-def id : ∀ {C : Cat} {X : Obj C}, Hom X X
-  | _, _, => Hom.id
-
-/-- Checks if a morphism is of the form `TopMk X; f` or `TopMk X`.
-Returns the map in that form if it is. -/
-def isTopMkComp : ∀ {C : Cat} {X Y : Obj C} (f : Hom X Y), Option (Hom X Y)
-  | _, _, _, Hom.top_mk => some Hom.top_mk
-  | _, _, _, _
+open Hom
 
 mutual
 
@@ -129,11 +122,39 @@ def coreprComp : ∀ {C : Cat} {X : CoreprObj C} {Y Z : Obj C}, HomCorepr X Y �
   | _, _, _, _, HomCorepr.ladj F H f, g => HomCorepr.ladj _ _ (comp f (Hom.map F g))
   | _, _, _, _, HomCorepr.bot, _ => HomCorepr.bot
 
-def compRepr : ∀ {C : Cat} {X Y : Obj C} {Z : ReprObj C}, Hom (notCorepr X) (notCorepr Y) → HomRepr Y Z → HomRepr X Z
-  | _, _, _, _, f, HomRepr.prod g h => HomRepr.prod (comp f h) (comp g i)
-  | _, _, _, _, HomRepr.radj F H f, HomRepr.radj G K g =>
-    HomRepr.radj _ _ (comp (Hom.map F f) (Hom.map G g))
+def compRepr : ∀ {C : Cat} {X Y : Obj C} {Z : ReprObj C}, Hom X Y → HomRepr Y Z → HomRepr X Z
+  | _, _, _, _, f, HomRepr.prod g h => HomRepr.prod (comp f g) (comp f h)
+  | _, _, _, _, f, HomRepr.radj F H g => HomRepr.radj _ _ (comp (Hom.map F f) g)
 
-def comp : ∀ {C : Cat} {X Y Z : Obj C}, Hom X Y → Hom Y Z → Hom X Z := sorry
+def comp : ∀ {C : Cat} {X Y Z : Obj C}, Hom X Y → Hom Y Z → Hom X Z
+  | _, _, _, _, Hom.corepr f, g => corepr (coreprComp f g)
+  | _, _, _, _, f, Hom.repr g => repr (compRepr f g)
+  | _, _, _, _, Hom.id _, f => f
+  | _, _, _, _, f, Hom.id _ => f
+  | _, _, _, _, _, _ => sorry
+  --| _, _, _, _, _, _ => sorry
+  --| _, _, _, _, _, _ => sorry
+  --| _, _, _, _, _, _ => sorry
+  --| _, _, _, _, _, _ => sorry
+
+end
+
+section
+
+open Hom
+
+/-- We assume that naturality has been applied as much as possible. -/
+def getTopMkComp : ∀ {C : Cat} {X Y : Obj C} (f : Hom X Y), Option (Hom (Obj.top _) Y)
+  | _, _, _, Hom.topMk => some topMk
+  | _, X, Obj.prod Y Z, Hom.repr (HomRepr.prod f g) =>
+    match getTopMkComp f, getTopMkComp g with
+    | none, _ => none
+    | _, none => none
+    | some f, some g => some (Hom.repr (HomRepr.prod f g))
+  | _, _, _, Hom.repr (HomRepr.radj F h f) =>
+    match getTopMkComp f with
+    | none => none
+    | some f => some (Hom.repr (HomRepr.radj F h (_ /-top_mk ∘ f-/)))
+  | _, _, _, _ => sorry
 
 end
