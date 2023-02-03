@@ -83,7 +83,6 @@ def HomVar.comp {C : Cat} : ∀ {X Y Z : ℕ} (f : HomVar C X Y) (g : HomVar C Y
   | _, _, _, HomVar.id _, f => f
   | _, _, _, HomVar.varComp n f, g => HomVar.varComp n (HomVar.comp f g)
 
-
 mutual
 
 inductive HomCorepr : {C : Cat} → CoreprObj C → Obj C → Type
@@ -111,7 +110,7 @@ inductive HomNonUniv : ∀ {C : Cat}, Obj C → Obj C → Type
       HomNonUniv (app F X) Z
 
 inductive HomUniv : ∀ {C : Cat}, Obj C → Obj C → Type
-  | id : ∀ {C : Cat} {X : Obj C}, HomUniv X X
+  | id : ∀ (C : Cat) (X : ℕ), HomUniv (var C X) (var C X)
   | projComp : ∀ {C : Cat} {X Y Z : Obj C} (f : Proj X Y) (g : HomUniv Y Z), HomUniv X Z
   | compEmb : ∀ {C : Cat} {X : Obj C} {Y Z : Obj C}
       (f : HomUniv X Y) (g : Emb Y Z), HomUniv X Z
@@ -146,6 +145,8 @@ def repr {C : Cat} {X : Obj C} {Y : ReprObj C} (f : HomRepr X Y) : Hom X (repr Y
 
 mutual
 
+unsafe def id : ∀ {C : Cat} {X : Obj C}, HomUniv X X := sorry
+
 unsafe def coreprComp : ∀ {C : Cat} {X : CoreprObj C} {Y Z : Obj C}, HomCorepr X Y → Hom Y Z → HomCorepr X Z
   | _, _, _, _, HomCorepr.coprod f g, h => HomCorepr.coprod (comp f h) (comp g h)
   | _, _, _, _, HomCorepr.ladj F H f, g => HomCorepr.ladj _ _ (comp f (Hom.map F g))
@@ -163,6 +164,15 @@ unsafe def nonUnivCompNonUniv : ∀ {C : Cat} {X Y Z : Obj C} (f : HomNonUniv X 
   | _, _, _, _, HomNonUniv.varComp f g, h => HomNonUniv.varComp f (nonUnivCompNonUniv g h)
   | _, _, _, _, HomNonUniv.mapComp F f g, h => HomNonUniv.mapComp F f (nonUnivCompNonUniv g h)
 
+unsafe def projComp : ∀ {C : Cat} {X Y Z : Obj C} (f : Proj X Y) (g : Hom Y Z), Hom X Z
+  | _, _, _, _, f, univ g => univ (HomUniv.projComp f g)
+  | _, _, _, _, f, univComp g h => univComp (HomUniv.projComp f g) h
+  | _, _, _, _, f, g => univComp (HomUniv.projComp f (Hom.id)) g
+
+unsafe def compEmb : ∀ {C : Cat} {X Y Z : Obj C} (f : Hom X Y) (g : Emb Y Z), Hom X Z
+  | _, _, _, _, univ f, g => univ (HomUniv.compEmb f g)
+  | _, _, _, _, univComp f g, h => univComp f (HomUniv.compEmb g h)
+  | _, _, _, _, f, g => univComp f (HomUniv.compEmb (Hom.id) g)
 
 unsafe def univCompUniv : ∀ {C : Cat} {X Y Z : Obj C} (f : HomUniv X Y) (g : HomUniv Y Z), Hom X Z
   | _, _, _, _, _, HomUniv.topMk => topMk
