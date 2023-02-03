@@ -21,58 +21,44 @@ open CatSystem
 mutual
 
 inductive CoreprObj : Cat → Type
-  | coprod {C : Cat} (X Y : Obj C) : CoreprObj C
-  | LAdj (C D : Cat) (F : Func C D) : HasLAdj C D F → Obj D → CoreprObj C
-  | bot : (C : Cat) → CoreprObj C
+  | Coprod {C : Cat} (X Y : Obj C) : CoreprObj C
+  | LAdj {C D : Cat} (F : Func C D) : HasLAdj C D F → Obj D → CoreprObj C
+  | Bot : (C : Cat) → CoreprObj C
 
 inductive ReprObj : Cat → Type
-  | prod {C : Cat} : Obj C → Obj C → ReprObj C
-  | RAdj (C D : Cat) (F : Func C D) : HasRAdj C D F → Obj D → ReprObj C
+  | Prod {C : Cat} : Obj C → Obj C → ReprObj C
+  | RAdj {C D : Cat} (F : Func C D) : HasRAdj C D F → Obj D → ReprObj C
 
 inductive Obj : Cat → Type
-  | corepr : ∀ {C : Cat}, CoreprObj C → Obj C
-  | var : (C : Cat) → ℕ → Obj C
-  | app : ∀ {C D : Cat}, Func C D → Obj C → Obj D
-  | repr : ∀ {C : Cat}, ReprObj C → Obj C
-  | top : (C : Cat) → Obj C
+  | Corepr : ∀ {C : Cat}, CoreprObj C → Obj C
+  | Var : (C : Cat) → ℕ → Obj C
+  | App : ∀ {C D : Cat}, Func C D → Obj C → Obj D
+  | Repr : ∀ {C : Cat}, ReprObj C → Obj C
+  | Top : (C : Cat) → Obj C
 
 end
 
-/- Normal form inspired by rewriting procedure in appendix A of http://www.tac.mta.ca/tac/volumes/8/n5/n5.pdf
-The exception to the rule being that the normal form of a map into `top` is always `top_mk` unless the
-map is from `bot`. -/
-
 open Obj
 
-nonrec def Obj.coprod {C : Cat} (X Y : Obj C) : Obj C :=
-  corepr (CoreprObj.coprod X Y)
+@[match_pattern]
+nonrec def Obj.Coprod {C : Cat} (X Y : Obj C) : Obj C :=
+  Corepr (CoreprObj.Coprod X Y)
 
 @[match_pattern]
-nonrec def Obj.prod {C : Cat} (X Y : Obj C) : Obj C :=
-  Obj.repr (ReprObj.prod X Y)
+nonrec def Obj.Prod {C : Cat} (X Y : Obj C) : Obj C :=
+  Obj.Repr (ReprObj.Prod X Y)
 
+@[match_pattern]
 nonrec def Obj.LAdj (C D : Cat) (F : Func C D) (H : HasLAdj C D F) (X : Obj D) : Obj C :=
-  corepr (CoreprObj.LAdj C D F H X)
+  Corepr (CoreprObj.LAdj F H X)
 
+@[match_pattern]
 nonrec def Obj.RAdj (C D : Cat) (F : Func C D) (H : HasRAdj C D F) (X : Obj D) : Obj C :=
-  Obj.repr (ReprObj.RAdj C D F H X)
+  Obj.Repr (ReprObj.RAdj F H X)
 
-nonrec def Obj.bot (C : Cat) : Obj C :=
-  corepr (CoreprObj.bot C)
-
-inductive Emb {C : Cat} : Obj C → Obj C → Type
-  | inl : ∀ {X Y : Obj C}, Emb X (coprod X Y)
-  | inr : ∀ {X Y : Obj C}, Emb Y (coprod X Y)
-  | unit : ∀ {D : Cat} (F : Func D C) (H : HasLAdj D C F) {X : Obj C},
-      Emb X (app F (LAdj D C F H X))
-  deriving DecidableEq
-
-inductive Proj {C : Cat} : Obj C → Obj C → Type
-  | fst : ∀ {X Y : Obj C}, Proj (prod X Y) X
-  | snd : ∀ {X Y : Obj C}, Proj (prod X Y) Y
-  | counit : ∀ {D : Cat} (F : Func D C) (H : HasRAdj D C F) {X : Obj C},
-      Proj (app F (RAdj D C F H X)) X
-  deriving DecidableEq
+@[match_pattern]
+nonrec def Obj.Bot (C : Cat) : Obj C :=
+  Corepr (CoreprObj.Bot C)
 
 inductive HomVar (C : Cat) : (X Y : ℕ) → Type
   | id : ∀ (X : ℕ), HomVar C X X
@@ -83,69 +69,63 @@ def HomVar.comp {C : Cat} : ∀ {X Y Z : ℕ} (f : HomVar C X Y) (g : HomVar C Y
   | _, _, _, HomVar.id _, f => f
   | _, _, _, HomVar.varComp n f, g => HomVar.varComp n (HomVar.comp f g)
 
+inductive Emb : ∀ {C : Cat}, Obj C → Obj C → Type
+  | inl : ∀ {X Y : Obj C}, Emb X (Coprod X Y)
+  | inr : ∀ {X Y : Obj C}, Emb Y (Coprod X Y)
+  | unit : ∀ {D : Cat} (F : Func D C) (H : HasLAdj D C F) {X : Obj C}, Emb X (App F (LAdj D C F H X))
+
+inductive Proj : ∀ {C : Cat}, Obj C → Obj C → Type
+  | fst : ∀ {X Y : Obj C}, Proj (Prod X Y) X
+  | snd : ∀ {X Y : Obj C}, Proj (Prod X Y) Y
+  | counit : ∀ {D : Cat} (F : Func D C) (H : HasRAdj D C F) {X : Obj C},
+      Proj (App F (RAdj D C F H X)) X
+
 mutual
 
 inductive HomCorepr : {C : Cat} → CoreprObj C → Obj C → Type
-  | coprod {C : Cat} {X Y Z : Obj C} (f : Hom X Z) (g : Hom Y Z) : HomCorepr (CoreprObj.coprod X Y) Z
+  | coprod {C : Cat} {X Y Z : Obj C} (f : Hom X Z) (g : Hom Y Z) : HomCorepr (CoreprObj.Coprod X Y) Z
   | ladj {C D : Cat} (F : Func C D) (H : HasLAdj C D F) {X : Obj D} {Y : Obj C}
-      (f : Hom X (app F Y)) : HomCorepr (CoreprObj.LAdj C D F H X) Y
-  | botMk {C : Cat} {X : Obj C} : HomCorepr (CoreprObj.bot C) X
+      (f : Hom X (App F Y)) : HomCorepr (CoreprObj.LAdj F H X) Y
+  | botMk {C : Cat} {X : Obj C} : HomCorepr (CoreprObj.Bot C) X
 
 inductive HomRepr : ∀ {C : Cat}, Obj C → ReprObj C → Type
   /-- Never to be used when `f` and `g` are of the form `f = f₁ ; f₂`, `g = g₁ ; g₂` and
   `f₁ = g₁` -/
   | prod {C : Cat} {X : Obj C} {Y Z : Obj C}
-    (f : Hom X Y) (g : Hom X Z) : HomRepr X (ReprObj.prod Y Z)
+    (f : Hom X Y) (g : Hom X Z) : HomRepr X (ReprObj.Prod Y Z)
   /-- Never to be used when `f` is a composition. -/
   | radj {C D : Cat} (F : Func C D) (H : HasRAdj C D F) {X : Obj C} {Y : Obj D}
-    (f : Hom (app F X) Y) : HomRepr X (ReprObj.RAdj C D F H Y)
+    (f : Hom (App F X) Y) : HomRepr X (ReprObj.RAdj F H Y)
 
--- Never compose two maps
-inductive HomNonUniv : ∀ {C : Cat}, Obj C → Obj C → Type
-  | var : ∀ {C : Cat} {X Y : ℕ}, HomVar C X Y → HomNonUniv (var C X) (var C Y)
-  | map : ∀ {C D : Cat} {X Y : Obj C} (F : Func C D) (f : Hom X Y), HomNonUniv (app F X) (app F Y)
-  | varComp : ∀ {C : Cat} {X Y : ℕ} {Z : Obj C} (f : HomVar C X Y) (g : HomNonUniv (var C Y) Z),
-      HomNonUniv (var C X) Z
-  | mapComp : ∀ {C D : Cat} (F : Func C D) {X Y : Obj C} {Z : Obj D} (f : Hom X Y) (g : HomNonUniv (app F Y) Z),
-      HomNonUniv (app F X) Z
-
-inductive HomUniv : ∀ {C : Cat}, Obj C → Obj C → Type
-  | id : ∀ (C : Cat) (X : ℕ), HomUniv (var C X) (var C X)
-  | projComp : ∀ {C : Cat} {X Y Z : Obj C} (f : Proj X Y) (g : HomUniv Y Z), HomUniv X Z
-  | compEmb : ∀ {C : Cat} {X : Obj C} {Y Z : Obj C}
-      (f : HomUniv X Y) (g : Emb Y Z), HomUniv X Z
-  | topMk : ∀ {C : Cat} {X : Obj C}, HomUniv X (top C)
-  | corepr : ∀ {C : Cat} {X : CoreprObj C} {Y : Obj C} (f : HomCorepr X Y), HomUniv (corepr X) Y
+inductive Hom : ∀ {C : Cat}, Obj C → Obj C → Type
+  | projComp : ∀ {C : Cat} {X Y Z : Obj C} (f : Proj X Y) (g : Hom Y Z), Hom X Z
+  | compEmb : ∀ {C : Cat} {X : Obj C} {Y Z : Obj C} (f : Hom X Y) (g : Emb Y Z), Hom X Z
+  | topMk : ∀ {C : Cat} {X : Obj C}, Hom X (Top C)
+  | corepr : ∀ {C : Cat} {X : CoreprObj C} {Y : Obj C} (f : HomCorepr X Y), Hom (Corepr X) Y
   | repr : ∀ {C : Cat} {X : Obj C} {Y : ReprObj C} (f : HomRepr X Y),
-      HomUniv X (repr Y)
-
--- Never compose a HomUniv with a HomUniv, or a HomNonUniv with a HomNonUniv.
-/-- Cut eliminated homs. Maybe change to not cut eliminated. -/
-inductive Hom : {C : Cat} → Obj C → Obj C → Type
-  | nonUnivComp : ∀ {C : Cat} {X Y Z : Obj C}, HomNonUniv X Y → Hom Y Z → Hom X Z
-  | univComp : ∀ {C : Cat} {X Y Z : Obj C}, HomUniv X Y → Hom Y Z → Hom X Z
-  | nonUniv : ∀ {C : Cat} {X Y : Obj C}, HomNonUniv X Y → Hom X Y
-  | univ : ∀ {C : Cat} {X Y : Obj C}, HomUniv X Y → Hom X Y
+      Hom X (Repr Y)
+  | map : ∀ {C D : Cat} {X Y : Obj C} (F : Func C D) (f : Hom X Y), Hom (App F X) (App F Y)
+  | var : ∀ {C : Cat} {X Y : ℕ}, HomVar C X Y → Hom (Var C X) (Var C Y)
 
 end
 
 namespace Hom
 
-def map {C D : Cat} (F : Func C D) {X Y : Obj C} (f : Hom X Y) : Hom (app F X) (app F Y) :=
-  nonUniv (HomNonUniv.map F f)
-
-def topMk {C : Cat} {X : Obj C} : Hom X (top C) :=
-  univ HomUniv.topMk
-
-def corepr {C : Cat} {X : CoreprObj C} {Y : Obj C} (f : HomCorepr X Y) : Hom (corepr X) Y :=
-  univ (HomUniv.corepr f)
-
-def repr {C : Cat} {X : Obj C} {Y : ReprObj C} (f : HomRepr X Y) : Hom X (repr Y) :=
-  univ (HomUniv.repr f)
-
 mutual
 
-unsafe def id : ∀ {C : Cat} {X : Obj C}, HomUniv X X := sorry
+unsafe def id : ∀ {C : Cat} {X : Obj C}, Hom X X
+  | _, Obj.Var C X => Hom.var (HomVar.id _)
+  | _, Obj.Top C => Hom.topMk
+  | _, Obj.App F X => Hom.map F Hom.id
+  | _, Obj.Repr (ReprObj.Prod X Y) => repr (HomRepr.prod (Hom.projComp Proj.fst Hom.id) (Hom.projComp Proj.snd Hom.id))
+  | _, Obj.Repr (ReprObj.RAdj F H Y) => repr (HomRepr.radj F H (Hom.projComp (Proj.counit F H) Hom.id))
+  | _, Obj.Corepr (CoreprObj.Coprod X Y) => corepr (HomCorepr.coprod (Hom.compEmb Hom.id Emb.inl) (Hom.compEmb Hom.id Emb.inr))
+  | _, Obj.Corepr (CoreprObj.LAdj F H X) => corepr (HomCorepr.ladj F H (Hom.compEmb Hom.id (Emb.unit F H)))
+  | _, Obj.Corepr (CoreprObj.Bot C) => corepr HomCorepr.botMk
+
+end
+
+mutual
 
 unsafe def coreprComp : ∀ {C : Cat} {X : CoreprObj C} {Y Z : Obj C}, HomCorepr X Y → Hom Y Z → HomCorepr X Z
   | _, _, _, _, HomCorepr.coprod f g, h => HomCorepr.coprod (comp f h) (comp g h)
@@ -156,55 +136,24 @@ unsafe def compRepr : ∀ {C : Cat} {X Y : Obj C} {Z : ReprObj C}, Hom X Y → H
   | _, _, _, _, f, HomRepr.prod g h => HomRepr.prod (comp f g) (comp f h)
   | _, _, _, _, f, HomRepr.radj F H g => HomRepr.radj _ _ (comp (Hom.map F f) g)
 
--- Composing two NonUniv, making sure to never compose two maps and assuming `f` and `g` don't contain composed `map`s.
-unsafe def nonUnivCompNonUniv : ∀ {C : Cat} {X Y Z : Obj C} (f : HomNonUniv X Y) (g : HomNonUniv Y Z), HomNonUniv X Z
-  | _, _, _, _, HomNonUniv.var f, g => HomNonUniv.varComp f g
-  | _, _, _, _, HomNonUniv.map F f, HomNonUniv.map _ g => HomNonUniv.map F (comp f g)
-  | _, _, _, _, HomNonUniv.map F f, HomNonUniv.mapComp _ g h => HomNonUniv.mapComp F (comp f g) h
-  | _, _, _, _, HomNonUniv.varComp f g, h => HomNonUniv.varComp f (nonUnivCompNonUniv g h)
-  | _, _, _, _, HomNonUniv.mapComp F f g, h => HomNonUniv.mapComp F f (nonUnivCompNonUniv g h)
-
-unsafe def projComp : ∀ {C : Cat} {X Y Z : Obj C} (f : Proj X Y) (g : Hom Y Z), Hom X Z
-  | _, _, _, _, f, univ g => univ (HomUniv.projComp f g)
-  | _, _, _, _, f, univComp g h => univComp (HomUniv.projComp f g) h
-  | _, _, _, _, f, g => univComp (HomUniv.projComp f (Hom.id)) g
-
-unsafe def compEmb : ∀ {C : Cat} {X Y Z : Obj C} (f : Hom X Y) (g : Emb Y Z), Hom X Z
-  | _, _, _, _, univ f, g => univ (HomUniv.compEmb f g)
-  | _, _, _, _, nonUniv f, g => nonUnivComp f (univ (HomUniv.compEmb Hom.id g))
-  | _, _, _, _, univComp f g, h => univComp f (compEmb g h)
-  | _, _, _, _, nonUnivComp f g, h => nonUnivComp f (compEmb g h)
-
-unsafe def univCompUniv : ∀ {C : Cat} {X Y Z : Obj C} (f : HomUniv X Y) (g : HomUniv Y Z), Hom X Z
-  | _, _, _, _, _, HomUniv.topMk => topMk
-  | _, _, _, _, HomUniv.corepr f, g => corepr (coreprComp f (Hom.univ g))
-  | _, _, _, _, f, HomUniv.repr g => repr (compRepr (Hom.univ f) g)
-  | _, _, _, _, HomUniv.projComp f g, h => univ (HomUniv.projComp f (univCompUniv g h))
-  | _, _, _, _, f, HomUniv.compEmb g h => HomUniv.compEmb (univCompUniv f g) h
-  | _, _, _, _, HomUniv.repr (HomRepr.prod f g), HomUniv.projComp Proj.fst h => comp f h
-  -- | _, _, _, _, Hom.repr (HomRepr.prod f g), projComp Proj.snd h => comp g h
-  -- | _, _, _, _, nonUniv f, nonUniv g => var (f.comp g)
-  -- | _, _, _, _, compEmb f Emb.inl, corepr (HomCorepr.coprod g h) => f.comp g
-  -- | _, _, _, _, compEmb f Emb.inr, corepr (HomCorepr.coprod g h) => f.comp h
-  -- | _, _, _, _, compEmb _ _, map _ _ => sorry
-  | _, _, _, _, _, _ => sorry
 
 unsafe def comp : ∀ {C : Cat} {X Y Z : Obj C}, Hom X Y → Hom Y Z → Hom X Z
-  -- | _, _, _, _, _, topMk => _
-  -- | _, _, _, _, Hom.corepr f, g => corepr (coreprComp f g)
-  -- | _, _, _, _, f, Hom.repr g => repr (compRepr f g)
-  -- | _, _, _, _, Hom.projComp f g, h => Hom.projComp f (comp g h)
-  -- | _, _, _, _, f, Hom.compEmb g h => compEmb (f.comp g) h
-  -- | _, _, _, _, Hom.repr (HomRepr.prod f g), projComp Proj.fst h => comp f h
-  -- | _, _, _, _, Hom.repr (HomRepr.prod f g), projComp Proj.snd h => comp g h
-  -- | _, _, _, _, nonUniv f, nonUniv g => var (f.comp g)
-  -- | _, _, _, _, compEmb f Emb.inl, corepr (HomCorepr.coprod g h) => f.comp g
-  -- | _, _, _, _, compEmb f Emb.inr, corepr (HomCorepr.coprod g h) => f.comp h
+  | _, _, _, _, _, topMk => topMk
+  | _, _, _, _, Hom.corepr f, g => corepr (coreprComp f g)
+  | _, _, _, _, f, Hom.repr g => repr (compRepr f g)
+  | _, _, _, _, Hom.projComp f g, h => Hom.projComp f (comp g h)
+  | _, _, _, _, f, Hom.compEmb g h => compEmb (f.comp g) h
+  | _, _, _, _, Hom.repr (HomRepr.prod f g), projComp Proj.fst h => comp f h
+  | _, _, _, _, Hom.repr (HomRepr.prod f g), projComp Proj.snd h => comp g h
+  | _, _, _, _, compEmb f Emb.inl, corepr (HomCorepr.coprod g h) => f.comp g
+  | _, _, _, _, compEmb f Emb.inr, corepr (HomCorepr.coprod g h) => f.comp h
+  | _, _, _, _, var f, var g => var (HomVar.comp f g)
+  | _, _, _, _, map F f, map _ g => map _ (comp f g)
+  | _, App F X, _, _, map _ f, projComp (Proj.counit _ _) _ => by
+    cases f
+
   -- | _, _, _, _, compEmb _ _, map _ _ => sorry
   | _, _, _, _, _, _ => sorry
-  --| _, _, _, _, _, _ => sorry
-  --| _, _, _, _, _, _ => sorry
-  --| _, _, _, _, _, _ => sorry
 
 end
 
