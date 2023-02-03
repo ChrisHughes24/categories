@@ -171,8 +171,9 @@ unsafe def projComp : ∀ {C : Cat} {X Y Z : Obj C} (f : Proj X Y) (g : Hom Y Z)
 
 unsafe def compEmb : ∀ {C : Cat} {X Y Z : Obj C} (f : Hom X Y) (g : Emb Y Z), Hom X Z
   | _, _, _, _, univ f, g => univ (HomUniv.compEmb f g)
-  | _, _, _, _, univComp f g, h => univComp f (HomUniv.compEmb g h)
-  | _, _, _, _, f, g => univComp f (HomUniv.compEmb (Hom.id) g)
+  | _, _, _, _, nonUniv f, g => nonUnivComp f (univ (HomUniv.compEmb Hom.id g))
+  | _, _, _, _, univComp f g, h => univComp f (compEmb g h)
+  | _, _, _, _, nonUnivComp f g, h => nonUnivComp f (compEmb g h)
 
 unsafe def univCompUniv : ∀ {C : Cat} {X Y Z : Obj C} (f : HomUniv X Y) (g : HomUniv Y Z), Hom X Z
   | _, _, _, _, _, HomUniv.topMk => topMk
