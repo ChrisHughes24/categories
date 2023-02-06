@@ -84,7 +84,9 @@ inductive Proj : ∀ {C : Cat}, Obj C → Obj C → Type
 
 mutual
 
-/- Currently have no way of writing certain homs.  -/
+/- Currently have no way of writing certain homs.
+-- map f (corepr anything) ; counit : App F (Corepr _) -> App F (Radj F _ _)
+-- map f (projComp (fst or snd)) ; counit : App F (X × _) -> App F (Radj F _ X) -/
 
 inductive HomCorepr : {C : Cat} → CoreprObj C → Obj C → Type
   | coprod {C : Cat} {X Y Z : Obj C} (f : Hom X Z) (g : Hom Y Z) : HomCorepr (CoreprObj.Coprod X Y) Z
@@ -93,11 +95,8 @@ inductive HomCorepr : {C : Cat} → CoreprObj C → Obj C → Type
   | botMk {C : Cat} {X : Obj C} : HomCorepr (CoreprObj.Bot C) X
 
 inductive HomRepr : ∀ {C : Cat}, Obj C → ReprObj C → Type
-  /-- Never to be used when `f` and `g` are of the form `f = f₁ ; f₂`, `g = g₁ ; g₂` and
-  `f₁ = g₁` -/
   | prod {C : Cat} {X : Obj C} {Y Z : Obj C}
     (f : Hom X Y) (g : Hom X Z) : HomRepr X (ReprObj.Prod Y Z)
-  /-- Never to be used when `f` is a composition. -/
   | radj {C D : Cat} (F : Func C D) (H : HasRAdj F) {X : Obj C} {Y : Obj D}
     (f : Hom (App F X) Y) : HomRepr X (ReprObj.RAdj F H Y)
 
@@ -132,6 +131,7 @@ unsafe def coreprComp : ∀ {C : Cat} {X : CoreprObj C} {Y Z : Obj C}, HomCorepr
   | _, _, _, _, HomCorepr.ladj F H f, g => HomCorepr.ladj _ _ (comp f (Hom.map F g))
   | _, _, _, _, HomCorepr.botMk, _ => HomCorepr.botMk
 
+
 unsafe def compRepr : ∀ {C : Cat} {X Y : Obj C} {Z : ReprObj C}, Hom X Y → HomRepr Y Z → HomRepr X Z
   | _, _, _, _, f, HomRepr.prod g h => HomRepr.prod (comp f g) (comp f h)
   | _, _, _, _, f, HomRepr.radj F H g => HomRepr.radj _ _ (comp (Hom.map F f) g)
@@ -142,7 +142,7 @@ unsafe def comp : ∀ {C : Cat} {X Y Z : Obj C}, Hom X Y → Hom Y Z → Hom X Z
   | _, _, _, _, Hom.corepr f, g => corepr (coreprComp f g)
   | _, _, _, _, f, Hom.repr g => repr (compRepr f g)
   | _, _, _, _, Hom.projComp f g, h => Hom.projComp f (comp g h)
-  | _, _, _, _, f, Hom.compEmb g h => compEmb (f.comp g) h
+  | _, X, Y, Z, f, Hom.compEmb g h => compEmb (f.comp g) h
   | _, _, _, _, Hom.repr (HomRepr.prod f g), projComp Proj.fst h => comp f h
   | _, _, _, _, Hom.repr (HomRepr.prod f g), projComp Proj.snd h => comp g h
   | _, _, _, _, compEmb f Emb.inl, corepr (HomCorepr.coprod g h) => f.comp g
@@ -156,6 +156,7 @@ unsafe def comp : ∀ {C : Cat} {X Y Z : Obj C}, Hom X Y → Hom Y Z → Hom X Z
   | _, _, _, _, _, _ => sorry
 
 end
+
 
 unsafe def LAdjSymm {C D : Cat} (F : Func C D) (H : HasLAdj F) {X : Obj D} {Y : Obj C}
     (f : Hom (Obj.LAdj F H X) Y) : Hom X (App F Y) :=
@@ -171,8 +172,8 @@ mutual
 
 /-
 Normal forms
-- If it can be written as `top_mk ; f` then it is.
-- If it can be written as `f ; corepr_mk` then it is unless the first rule applies.
+- If it can be written as `top_mk ; f` then it is. Uniqueness is fairly easy here.
+- If it can be written as `f ; corepr_mk` then it is unless the first rule applies. What if there are two different ways of doing this?
 - If it can be written as `repr_mk ; f` then it is unless one of the first two rules apply.
 - Not sure what else there is.
 -/
@@ -215,6 +216,10 @@ unsafe def getTopMkComp [∀ C : Cat, ∀ X Y : Obj C, DecidableEq (Hom X Y)] :
     | none => none
     | some f => compEmb f g
   | _, _, _, corepr HomCorepr.botMk => none
+
+unsafe def getCompCoreprMk [∀ C : Cat, ∀ X Y : Obj C, DecidableEq (Hom X Y)] :
+    ∀ {C : Cat} {X Y : Obj C} (f : Hom X Y), Option (Σ R : CoreprObj C, Hom X (corepr R) × HomCorepr R Y)
+  | _, Obj.corepr _, g =>
 
 unsafe def normalize : ∀ {C : Cat} {X Y : Obj C} (f : Hom X Y), Hom X Y := sorry
 
