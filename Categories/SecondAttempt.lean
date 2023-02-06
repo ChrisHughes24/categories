@@ -6,13 +6,15 @@ set_option linter.unusedVariables false
 class CatSystem (Cat : Type) :=
   [ decEq : DecidableEq Cat ]
   ( Func : Cat → Cat → Type )
-  ( HasLAdj : ∀ (C D : Cat), Func C D → Prop )
-  ( HasRAdj : ∀ (C D : Cat), Func C D → Prop )
+  ( HasLAdj : ∀ {C D : Cat}, Func C D → Prop )
+  [ decidableLAdj : ∀ (C D : Cat) (F : Func C D), Decidable (HasLAdj F) ]
+  ( HasRAdj : ∀ {C D : Cat}, Func C D → Prop )
+  [ decidableRAdj : ∀ (C D : Cat) (F : Func C D), Decidable (HasRAdj F) ]
 
 /- We have a system of Categories -/
 variable {Cat : Type} [CatSystem Cat]
 
-attribute [instance] CatSystem.decEq
+attribute [instance] CatSystem.decEq CatSystem.decidableLAdj CatSystem.decidableRAdj
 
 open CatSystem
 
@@ -22,12 +24,12 @@ mutual
 
 inductive CoreprObj : Cat → Type
   | Coprod {C : Cat} (X Y : Obj C) : CoreprObj C
-  | LAdj {C D : Cat} (F : Func C D) : HasLAdj C D F → Obj D → CoreprObj C
+  | LAdj {C D : Cat} (F : Func C D) : HasLAdj F → Obj D → CoreprObj C
   | Bot : (C : Cat) → CoreprObj C
 
 inductive ReprObj : Cat → Type
   | Prod {C : Cat} : Obj C → Obj C → ReprObj C
-  | RAdj {C D : Cat} (F : Func C D) : HasRAdj C D F → Obj D → ReprObj C
+  | RAdj {C D : Cat} (F : Func C D) : HasRAdj F → Obj D → ReprObj C
 
 inductive Obj : Cat → Type
   | Corepr : ∀ {C : Cat}, CoreprObj C → Obj C
@@ -49,11 +51,11 @@ nonrec def Obj.Prod {C : Cat} (X Y : Obj C) : Obj C :=
   Obj.Repr (ReprObj.Prod X Y)
 
 @[match_pattern]
-nonrec def Obj.LAdj (C D : Cat) (F : Func C D) (H : HasLAdj C D F) (X : Obj D) : Obj C :=
+nonrec def Obj.LAdj {C D : Cat} (F : Func C D) (H : HasLAdj F) (X : Obj D) : Obj C :=
   Corepr (CoreprObj.LAdj F H X)
 
 @[match_pattern]
-nonrec def Obj.RAdj (C D : Cat) (F : Func C D) (H : HasRAdj C D F) (X : Obj D) : Obj C :=
+nonrec def Obj.RAdj {C D : Cat} (F : Func C D) (H : HasRAdj F) (X : Obj D) : Obj C :=
   Obj.Repr (ReprObj.RAdj F H X)
 
 @[match_pattern]
@@ -72,19 +74,21 @@ def HomVar.comp {C : Cat} : ∀ {X Y Z : ℕ} (f : HomVar C X Y) (g : HomVar C Y
 inductive Emb : ∀ {C : Cat}, Obj C → Obj C → Type
   | inl : ∀ {X Y : Obj C}, Emb X (Coprod X Y)
   | inr : ∀ {X Y : Obj C}, Emb Y (Coprod X Y)
-  | unit : ∀ {D : Cat} (F : Func D C) (H : HasLAdj D C F) {X : Obj C}, Emb X (App F (LAdj D C F H X))
+  | unit : ∀ {D : Cat} (F : Func D C) (H : HasLAdj F) {X : Obj C}, Emb X (App F (LAdj F H X))
 
 inductive Proj : ∀ {C : Cat}, Obj C → Obj C → Type
   | fst : ∀ {X Y : Obj C}, Proj (Prod X Y) X
   | snd : ∀ {X Y : Obj C}, Proj (Prod X Y) Y
-  | counit : ∀ {D : Cat} (F : Func D C) (H : HasRAdj D C F) {X : Obj C},
-      Proj (App F (RAdj D C F H X)) X
+  | counit : ∀ {D : Cat} (F : Func D C) (H : HasRAdj F) {X : Obj C},
+      Proj (App F (RAdj F H X)) X
 
 mutual
 
+/- Currently have no way of writing certain homs.  -/
+
 inductive HomCorepr : {C : Cat} → CoreprObj C → Obj C → Type
   | coprod {C : Cat} {X Y Z : Obj C} (f : Hom X Z) (g : Hom Y Z) : HomCorepr (CoreprObj.Coprod X Y) Z
-  | ladj {C D : Cat} (F : Func C D) (H : HasLAdj C D F) {X : Obj D} {Y : Obj C}
+  | ladj {C D : Cat} (F : Func C D) (H : HasLAdj F) {X : Obj D} {Y : Obj C}
       (f : Hom X (App F Y)) : HomCorepr (CoreprObj.LAdj F H X) Y
   | botMk {C : Cat} {X : Obj C} : HomCorepr (CoreprObj.Bot C) X
 
@@ -94,7 +98,7 @@ inductive HomRepr : ∀ {C : Cat}, Obj C → ReprObj C → Type
   | prod {C : Cat} {X : Obj C} {Y Z : Obj C}
     (f : Hom X Y) (g : Hom X Z) : HomRepr X (ReprObj.Prod Y Z)
   /-- Never to be used when `f` is a composition. -/
-  | radj {C D : Cat} (F : Func C D) (H : HasRAdj C D F) {X : Obj C} {Y : Obj D}
+  | radj {C D : Cat} (F : Func C D) (H : HasRAdj F) {X : Obj C} {Y : Obj D}
     (f : Hom (App F X) Y) : HomRepr X (ReprObj.RAdj F H Y)
 
 inductive Hom : ∀ {C : Cat}, Obj C → Obj C → Type
@@ -111,9 +115,7 @@ end
 
 namespace Hom
 
-mutual
-
-unsafe def id : ∀ {C : Cat} {X : Obj C}, Hom X X
+def id : ∀ {C : Cat} {X : Obj C}, Hom X X
   | _, Obj.Var C X => Hom.var (HomVar.id _)
   | _, Obj.Top C => Hom.topMk
   | _, Obj.App F X => Hom.map F Hom.id
@@ -122,8 +124,6 @@ unsafe def id : ∀ {C : Cat} {X : Obj C}, Hom X X
   | _, Obj.Corepr (CoreprObj.Coprod X Y) => corepr (HomCorepr.coprod (Hom.compEmb Hom.id Emb.inl) (Hom.compEmb Hom.id Emb.inr))
   | _, Obj.Corepr (CoreprObj.LAdj F H X) => corepr (HomCorepr.ladj F H (Hom.compEmb Hom.id (Emb.unit F H)))
   | _, Obj.Corepr (CoreprObj.Bot C) => corepr HomCorepr.botMk
-
-end
 
 mutual
 
@@ -149,13 +149,21 @@ unsafe def comp : ∀ {C : Cat} {X Y Z : Obj C}, Hom X Y → Hom Y Z → Hom X Z
   | _, _, _, _, compEmb f Emb.inr, corepr (HomCorepr.coprod g h) => f.comp h
   | _, _, _, _, var f, var g => var (HomVar.comp f g)
   | _, _, _, _, map F f, map _ g => map _ (comp f g)
-  | _, App F X, _, _, map _ f, projComp (Proj.counit _ _) _ => by
-    cases f
+  --| _, App F X, _, _, map _ (projComp _ _), projComp (Proj.counit _ _) _ => sorry  --Leave it
+  --   cases f
 
-  -- | _, _, _, _, compEmb _ _, map _ _ => sorry
+  -- -- | _, _, _, _, compEmb _ _, map _ _ => sorry
   | _, _, _, _, _, _ => sorry
 
 end
+
+unsafe def LAdjSymm {C D : Cat} (F : Func C D) (H : HasLAdj F) {X : Obj D} {Y : Obj C}
+    (f : Hom (Obj.LAdj F H X) Y) : Hom X (App F Y) :=
+  Hom.comp (Hom.compEmb Hom.id (Emb.unit _ H)) (map F f)
+
+unsafe def RAdjSymm {C D : Cat} (F : Func C D) (H : HasRAdj F) {X : Obj C} {Y : Obj D}
+    (f : Hom X (Obj.RAdj F H Y)) : Hom (App F X) Y :=
+  Hom.comp (map F f) (Hom.projComp (Proj.counit _ H) Hom.id)
 
 section
 
@@ -171,15 +179,14 @@ Normal forms
 
 open Hom
 
-/-- We assume that naturality has been applied as much as possible. -/
 unsafe def getTopMkComp [∀ C : Cat, ∀ X Y : Obj C, DecidableEq (Hom X Y)] :
-    ∀ {C : Cat} {X Y : Obj C} (f : Hom X Y), Option (Hom (Obj.top _) Y)
-  | _, _, _, Hom.topMk => some topMk
-  | _, X, Obj.prod Y Z, Hom.repr (HomRepr.prod f g) =>
+    ∀ {C : Cat} {X Y : Obj C} (f : Hom X Y), Option (Hom (Obj.Top _) Y)
+  | _, _, Obj.Top _, _ => some topMk
+  | _, _, Obj.Var _ _, _ => none
+  | _, X, _, Hom.repr (HomRepr.prod f g) =>
     match getTopMkComp f, getTopMkComp g with
-    | none, _ => none
-    | _, none => none
-    | some f, some g => some (Hom.repr (HomRepr.prod f g))
+    | some f', some g' => some (Hom.repr (HomRepr.prod f' g'))
+    | _, _ => none
   | _, _, _, Hom.repr (HomRepr.radj F h f) =>
     match getTopMkComp f with
     | none => none
@@ -194,20 +201,23 @@ unsafe def getTopMkComp [∀ C : Cat, ∀ X Y : Obj C, DecidableEq (Hom X Y)] :
         if nf = ng
           then nf
           else none
-  | _, _, Z, Hom.corepr (HomCorepr.ladj F H f) =>
+  | _, _, _, Hom.corepr (HomCorepr.ladj F H f) => none
+  | _, _, _, Hom.map F f =>
+    if hR : HasLAdj F
+    then
+      match getTopMkComp f with
+      | none => none
+      | some f => some $ LAdjSymm _ hR (comp topMk f)
+    else none
+  | _, _, _, projComp f g => getTopMkComp g
+  | _, _, _, compEmb f g =>
     match getTopMkComp f with
     | none => none
-    | some f => some (Hom.comp _ (Hom.corepr (HomCorepr.ladj F H f)))
-
-  | _, _, _, _ => sorry
+    | some f => compEmb f g
+  | _, _, _, corepr HomCorepr.botMk => none
 
 unsafe def normalize : ∀ {C : Cat} {X Y : Obj C} (f : Hom X Y), Hom X Y := sorry
 
 end
 
-end Hom
-
-end
-
-end
 end Hom
