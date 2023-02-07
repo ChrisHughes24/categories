@@ -330,7 +330,7 @@ unsafe def getTopMkComp :
 --What is shrinking?
 unsafe def getCompCoprodBotMk :
     ∀ {C : Cat} {X Y : Obj C} (f : Hom X Y), Option (Σ R : CoreprObj C, Hom X (Corepr R) × HomCorepr R Y)
-  | _, Corepr (CoreprObj.Coprod X Y), _, f => some ⟨_, Hom.id, asCorepr f⟩
+  | _, Corepr (CoreprObj.Coprod _ _), _, f => some ⟨_, Hom.id, asCorepr f⟩
   | _, Corepr (CoreprObj.Bot _), _, f => some ⟨_, Hom.id, asCorepr f⟩
   | _, _, _, var _ => none
   | _, _, _, topMk => none
@@ -342,7 +342,7 @@ unsafe def getCompCoprodBotMk :
     match getCompCoprodBotMk f with
     | none => none
     | some ⟨R, f, h⟩ => some ⟨R, f, coreprComp h (ofEmb g)⟩
-  | _, _, _, repr (HomRepr.prod f g) =>
+  | _, _, _, Hom.repr (HomRepr.prod f g) =>
     match getCompCoprodBotMk f, getCompCoprodBotMk g with
     | some ⟨R₁, f₁, f₂⟩, some ⟨R₂, g₁, g₂⟩ =>
         let nf := normalize f₁
@@ -369,8 +369,8 @@ unsafe def getCompCoprodBotMk :
         match R, f, h with
         | _, f, HomCorepr.botMk => some ⟨_, comp (map F f) (preserveBotOfHasRAdj _ hR), HomCorepr.botMk⟩
         | _, f, HomCorepr.coprod g h =>
-          some ⟨_, (map F f).comp (RAdjSymm _ hR (coprod (radj _ _ (ofEmb Emb.inl))
-            (radj _ _ (ofEmb Emb.inr)))), HomCorepr.coprod (map F g) (map F h)⟩
+          some ⟨_, (map F f).comp (RAdjSymm _ hR (coprod (radj _ _ inl)
+            (radj _ _ inr))), HomCorepr.coprod (map F g) (map F h)⟩
         | _, _, _ => none
     else none
   | _, _, _, corepr (HomCorepr.ladj F H f) =>
@@ -392,8 +392,28 @@ unsafe def getProdComp :
   | _, Corepr (CoreprObj.Bot _), _, f => none
   | _, _, Obj.Repr (ReprObj.Prod X Y), f => some ⟨X, Y, comp f fst, comp f snd, Hom.id⟩
   | _, _, _, var _ => none
-  | _, _, _, compEmb f g => _
-  | _, _, _, _ => sorry
+  | _, _, _, compEmb f g =>
+    match getProdComp f with
+    | none => none
+    | some ⟨A, B, f₁, f₂, h⟩ => some ⟨A, B, f₁, f₂, compEmb h g⟩
+  | _, _, _, projComp f g =>
+    match getProdComp g with
+    | none => none
+    | some ⟨A, B, g₁, g₂, h⟩ => some ⟨A, B, projComp f g₁, projComp f g₂, h⟩
+  | _, _, _, corepr (HomCorepr.ladj _ _ _) => none
+  | _, _, _, map F f =>
+    if hL : HasLAdj F
+    then
+      match getProdComp f with
+      | none => none
+      | some ⟨A, B, f₁, f₂, f₃⟩ => some ⟨_, _, map F f₁, map F f₂,
+          comp (LAdjSymm _ hL (prod (ladj _ _ fst) (ladj _ _ snd))) (map F f₃)⟩
+    else none
+  | _, _, _, Hom.repr (HomRepr.radj F H f) =>
+      match getProdComp f with
+      | none => none
+      | some ⟨A, B, f₁, f₂, f₃⟩ => some ⟨_, _, repr (HomRepr.radj F H f₁), repr (HomRepr.radj F H f₂),
+          radj F H (comp (RAdjSymm _ H (radjPreserveProd _ _)) f₃)⟩
 
 unsafe def normalize : ∀ {C : Cat} {X Y : Obj C} (f : Hom X Y), Hom X Y := sorry
 
