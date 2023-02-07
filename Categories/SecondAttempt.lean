@@ -110,6 +110,9 @@ inductive Hom : ∀ {C : Cat}, Obj C → Obj C → Type
   | map : ∀ {C D : Cat} {X Y : Obj C} (F : Func C D) (f : Hom X Y), Hom (App F X) (App F Y)
   | var : ∀ {C : Cat} {X Y : ℕ}, HomVar C X Y → Hom (Var C X) (Var C Y)
 
+/-Provided LAdj is bigger than map, every Hom constructor make homs from homs between smaller objects.
+By smaller I mean that -/
+
 end
 
 namespace Hom
@@ -292,10 +295,17 @@ mutual
 /-
 Normal forms
 - If it can be written as `top_mk ; f` then it is. Uniqueness is fairly easy here.
-- If it can be written as `f ; corepr_mk` then it is unless the first rule applies. What if there are two different ways of doing this?,
+- If it can be written as `f ; corepr g` then it is unless the first rule applies. What if there are two different ways of doing this?,
     Try to make sure `f` is not of that form
+    Also `corepr g` should remain a subterm after `f` and `corepr g` are composed and cut eliminated.
 - If it can be written as `repr_mk ; f` then it is unless one of the first two rules apply.
 - Not sure what else there is.
+-/
+
+/-
+Questions: What is shrinking? I have to make sure that everything splits into smaller homs.
+I decided to do products before LAdj. Why? I don't think this applies if I insist on objects shrinking.
+
 -/
 
 open Hom
