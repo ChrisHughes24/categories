@@ -40,21 +40,32 @@ inductive Obj : Cat → Type
 
 end
 
+@[simp]
+def Obj.size : ∀ {C : Cat} (X : Obj C), ℕ
+  | _, Obj.Corepr (CoreprObj.Coprod X Y) => 2 + Obj.size X + Obj.size Y
+  | _, Obj.Corepr (CoreprObj.LAdj F H X) => 3 + Obj.size X
+  | _, Obj.Corepr (CoreprObj.Bot C) => 1
+  | _, Obj.Var C n => 1
+  | _, Obj.App F X => 1 + Obj.size X
+  | _, Obj.Repr (ReprObj.Prod X Y) => 2 + Obj.size X + Obj.size Y
+  | _, Obj.Repr (ReprObj.RAdj F H X) => 3 + Obj.size X
+  | _, Obj.Repr (ReprObj.Top C) => 1
+
 open Obj
 
-@[match_pattern]
+@[match_pattern, simp]
 nonrec def Obj.Coprod {C : Cat} (X Y : Obj C) : Obj C :=
   Corepr (CoreprObj.Coprod X Y)
 
-@[match_pattern]
+@[match_pattern, simp]
 nonrec def Obj.Prod {C : Cat} (X Y : Obj C) : Obj C :=
   Obj.Repr (ReprObj.Prod X Y)
 
-@[match_pattern]
+@[match_pattern, simp]
 nonrec def Obj.LAdj {C D : Cat} (F : Func C D) (H : HasLAdj F) (X : Obj D) : Obj C :=
   Corepr (CoreprObj.LAdj F H X)
 
-@[match_pattern]
+@[match_pattern, simp]
 nonrec def Obj.RAdj {C D : Cat} (F : Func C D) (H : HasRAdj F) (X : Obj D) : Obj C :=
   Obj.Repr (ReprObj.RAdj F H X)
 
@@ -91,8 +102,8 @@ inductive Proj : ∀ {C : Cat}, Obj C → Obj C → Type
 mutual
 
 /- Currently have no way of writing certain homs.
--- map f (corepr anything) ; counit : App F (Corepr _) -> App F (Radj F _ _)
--- map f (projComp (fst or snd)) ; counit : App F (X × _) -> App F (Radj F _ X) -/
+-- map F (corepr anything) ; counit : App F (Corepr _) -> App F (Radj F _ _)
+-- map F (projComp (fst or snd)) ; counit : App F (X × _) -> App F (Radj F _ X) -/
 
 inductive HomCorepr : {C : Cat} → CoreprObj C → Obj C → Type
   | coprod {C : Cat} {X Y Z : Obj C} (f : Hom X Z) (g : Hom Y Z) : HomCorepr (CoreprObj.Coprod X Y) Z
@@ -111,8 +122,7 @@ inductive Hom : ∀ {C : Cat}, Obj C → Obj C → Type
   | projComp : ∀ {C : Cat} {X Y Z : Obj C} (f : Proj X Y) (g : Hom Y Z), Hom X Z
   | compEmb : ∀ {C : Cat} {X : Obj C} {Y Z : Obj C} (f : Hom X Y) (g : Emb Y Z), Hom X Z
   | corepr : ∀ {C : Cat} {X : CoreprObj C} {Y : Obj C} (f : HomCorepr X Y), Hom (Corepr X) Y
-  | repr : ∀ {C : Cat} {X : Obj C} {Y : ReprObj C} (f : HomRepr X Y),
-      Hom X (Repr Y)
+  | repr : ∀ {C : Cat} {X : Obj C} {Y : ReprObj C} (f : HomRepr X Y), Hom X (Repr Y)
   | map : ∀ {C D : Cat} {X Y : Obj C} (F : Func C D) (f : Hom X Y), Hom (App F X) (App F Y)
   | var : ∀ {C : Cat} {X Y : ℕ}, HomVar C X Y → Hom (Var C X) (Var C Y)
 
@@ -183,23 +193,27 @@ def ladj {C : Cat} {D : Cat} (F : Func C D) (H : HasLAdj F) {X : Obj C} {Y : Obj
 
 mutual
 
-unsafe def coreprComp : ∀ {C : Cat} {X : CoreprObj C} {Y Z : Obj C}, HomCorepr X Y → Hom Y Z → HomCorepr X Z
+def coreprComp : ∀ {C : Cat} {X : CoreprObj C} {Y Z : Obj C}, HomCorepr X Y → Hom Y Z → HomCorepr X Z
   | _, _, _, _, HomCorepr.coprod f g, h => HomCorepr.coprod (comp f h) (comp g h)
   | _, _, _, _, HomCorepr.ladj F H f, g => HomCorepr.ladj _ _ (comp f (Hom.map F g))
   | _, _, _, _, HomCorepr.botMk, _ => HomCorepr.botMk
 
 
-unsafe def compRepr : ∀ {C : Cat} {X Y : Obj C} {Z : ReprObj C}, Hom X Y → HomRepr Y Z → HomRepr X Z
+def compRepr : ∀ {C : Cat} {X Y : Obj C} {Z : ReprObj C}, Hom X Y → HomRepr Y Z → HomRepr X Z
   | _, _, _, _, f, HomRepr.prod g h => HomRepr.prod (comp f g) (comp f h)
   | _, _, _, _, f, HomRepr.radj F H g => HomRepr.radj _ _ (comp (Hom.map F f) g)
   | _, _, _, _, _, HomRepr.topMk => HomRepr.topMk
 
 
-unsafe def comp : ∀ {C : Cat} {X Y Z : Obj C}, Hom X Y → Hom Y Z → Hom X Z
+def comp : ∀ {C : Cat} {X Y Z : Obj C}, Hom X Y → Hom Y Z → Hom X Z
   | _, _, _, _, Hom.corepr f, g => corepr (coreprComp f g)
   | _, _, _, _, f, Hom.repr g => repr (compRepr f g)
-  | _, _, _, _, Hom.projComp f g, h => Hom.projComp f (comp g h)
-  | _, _, _, _, f, Hom.compEmb g h => compEmb (f.comp g) h
+  | _, W, Y, Z, Hom.projComp (Y := X) f g, h =>
+    have : size X + size Z + 1 < size W + size Z + 1 := sorry
+    Hom.projComp f (comp g h)
+  | _, W, X, Z, f, Hom.compEmb (Y := Y) g h =>
+    have : size W + size Y + 1 < size W + size Z + 1 := sorry
+    compEmb (f.comp g) h
   | _, _, _, _, prod f g, projComp Proj.fst h => comp f h
   | _, _, _, _, prod f g, projComp Proj.snd h => comp g h
   | _, _, _, _, compEmb f Emb.inl, coprod g h => f.comp g
@@ -213,6 +227,9 @@ unsafe def comp : ∀ {C : Cat} {X Y Z : Obj C}, Hom X Y → Hom Y Z → Hom X Z
   | _, _, _, _, _, _ => sorry
 
 end
+termination_by comp C X Y Z f g => (size X + size Z + 1, size Y, 1)
+               coreprComp C X Y Z f g => (size (Corepr X) + size Z, size Y, 0)
+               compRepr C X Y Z f g => (size X + size (Repr Z), size Y, 0)
 
 unsafe def LAdjSymm {C D : Cat} (F : Func C D) (H : HasLAdj F) {X : Obj D} {Y : Obj C}
     (f : Hom (Obj.LAdj F H X) Y) : Hom X (App F Y) :=
