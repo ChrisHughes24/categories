@@ -99,6 +99,12 @@ inductive Proj : ∀ {C : Cat}, Obj C → Obj C → Type
       Proj (App F (RAdj F H X)) X
   deriving DecidableEq
 
+theorem size_lt_of_emb {C : Cat} {X Y : Obj C} (f : Emb X Y) : Obj.size X < Obj.size Y := by
+  cases f <;> simp? [add_comm]
+
+theorem size_lt_of_proj {C : Cat} {X Y : Obj C} (f : Proj X Y) : Obj.size Y < Obj.size X := by
+  cases f <;> simp
+
 mutual
 
 /- Currently have no way of writing certain homs.
