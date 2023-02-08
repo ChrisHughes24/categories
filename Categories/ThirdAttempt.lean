@@ -1,5 +1,6 @@
 import Mathlib.Init.Algebra.Order
 import Mathlib.Init.Data.Nat.Notation
+import Mathlib.Tactic.Linarith
 
 set_option linter.unusedVariables false
 
@@ -100,10 +101,10 @@ inductive Proj : ∀ {C : Cat}, Obj C → Obj C → Type
   deriving DecidableEq
 
 theorem size_lt_of_emb {C : Cat} {X Y : Obj C} (f : Emb X Y) : Obj.size X < Obj.size Y := by
-  cases f <;> simp? [add_comm]
+  cases f <;> simp [add_comm] <;> linarith
 
 theorem size_lt_of_proj {C : Cat} {X Y : Obj C} (f : Proj X Y) : Obj.size Y < Obj.size X := by
-  cases f <;> simp
+  cases f <;> simp <;> linarith
 
 mutual
 
@@ -210,20 +211,25 @@ def compRepr : ∀ {C : Cat} {X Y : Obj C} {Z : ReprObj C}, Hom X Y → HomRepr 
   | _, _, _, _, f, HomRepr.radj F H g => HomRepr.radj _ _ (comp (Hom.map F f) g)
   | _, _, _, _, _, HomRepr.topMk => HomRepr.topMk
 
-
 def comp : ∀ {C : Cat} {X Y Z : Obj C}, Hom X Y → Hom Y Z → Hom X Z
   | _, _, _, _, Hom.corepr f, g => corepr (coreprComp f g)
   | _, _, _, _, f, Hom.repr g => repr (compRepr f g)
   | _, W, Y, Z, Hom.projComp (Y := X) f g, h =>
-    have : size X + size Z + 1 < size W + size Z + 1 := sorry
+    have : size X + size Z + 1 < size W + size Z + 1 :=
+      by linarith [size_lt_of_proj f]
     Hom.projComp f (comp g h)
   | _, W, X, Z, f, Hom.compEmb (Y := Y) g h =>
-    have : size W + size Y + 1 < size W + size Z + 1 := sorry
+    have : size W + size Y + 1 < size W + size Z + 1 :=
+      by linarith [size_lt_of_emb h]
     compEmb (f.comp g) h
   | _, _, _, _, prod f g, projComp Proj.fst h => comp f h
-  | _, _, _, _, prod f g, projComp Proj.snd h => comp g h
+  | _, W, Obj.Prod X Y, Z, prod f g, projComp Proj.snd h =>
+    have : size Y < 2 + size X + size Y := by linarith
+    comp g h
   | _, _, _, _, compEmb f Emb.inl, coprod g h => f.comp g
-  | _, _, _, _, compEmb f Emb.inr, coprod g h => f.comp h
+  | _, W, Obj.Coprod X Y, Z, compEmb f Emb.inr, coprod g h =>
+    have : size Y < 2 + size X + size Y := by linarith
+    f.comp h
   | _, _, _, _, var f, var g => var (HomVar.comp f g)
   | _, _, _, _, map F f, map _ g => map _ (comp f g)
   --| _, App F X, _, _, map _ (projComp _ _), projComp (Proj.counit _ _) _ => sorry  --Leave it
@@ -237,19 +243,19 @@ termination_by comp C X Y Z f g => (size X + size Z + 1, size Y, 1)
                coreprComp C X Y Z f g => (size (Corepr X) + size Z, size Y, 0)
                compRepr C X Y Z f g => (size X + size (Repr Z), size Y, 0)
 
-unsafe def LAdjSymm {C D : Cat} (F : Func C D) (H : HasLAdj F) {X : Obj D} {Y : Obj C}
+def LAdjSymm {C D : Cat} (F : Func C D) (H : HasLAdj F) {X : Obj D} {Y : Obj C}
     (f : Hom (Obj.LAdj F H X) Y) : Hom X (App F Y) :=
   Hom.comp (Hom.compEmb Hom.id (Emb.unit _ H)) (map F f)
 
-unsafe def RAdjSymm {C D : Cat} (F : Func C D) (H : HasRAdj F) {X : Obj C} {Y : Obj D}
+def RAdjSymm {C D : Cat} (F : Func C D) (H : HasRAdj F) {X : Obj C} {Y : Obj D}
     (f : Hom X (Obj.RAdj F H Y)) : Hom (App F X) Y :=
   Hom.comp (map F f) (Hom.projComp (Proj.counit _ H) Hom.id)
 
-unsafe def ladjMap {C D : Cat} (F : Func C D) (H : HasLAdj F) {X Y : Obj D} (f : Hom X Y) :
+def ladjMap {C D : Cat} (F : Func C D) (H : HasLAdj F) {X Y : Obj D} (f : Hom X Y) :
     Hom (LAdj F H X) (LAdj F H Y) :=
   ladj _ _ (comp f (unit _ _))
 
-unsafe def radjMap {C D : Cat} (F : Func C D) (H : HasRAdj F) {X Y : Obj D} (f : Hom X Y) :
+def radjMap {C D : Cat} (F : Func C D) (H : HasRAdj F) {X Y : Obj D} (f : Hom X Y) :
     Hom (RAdj F H X) (RAdj F H Y) :=
   radj _ _ (comp (counit _ _) f)
 
@@ -259,33 +265,33 @@ def ladjPreserveBot {C D : Cat} (F : Func C D) (H : HasLAdj F) : Hom (LAdj F H (
 def radjPreserveTop {C D : Cat} (F : Func C D) (H : HasRAdj F) : Hom (Obj.Top _) (RAdj F H (Obj.Top _)) :=
   radj _ _ topMk
 
-unsafe def ladjPreserveCoprod {C D : Cat} (F : Func C D) (H : HasLAdj F) {X Y : Obj D} :
+def ladjPreserveCoprod {C D : Cat} (F : Func C D) (H : HasLAdj F) {X Y : Obj D} :
     Hom (LAdj F H (Obj.Coprod X Y)) (Obj.Coprod (LAdj F H X) (LAdj F H Y)) :=
   ladj _ _ (coprod (LAdjSymm _ H inl) (LAdjSymm _ H inr))
 
-unsafe def ladjPreserveCoprodSymm {C D : Cat} (F : Func C D) (H : HasLAdj F) {X Y : Obj D} :
+def ladjPreserveCoprodSymm {C D : Cat} (F : Func C D) (H : HasLAdj F) {X Y : Obj D} :
     Hom (Obj.Coprod (LAdj F H X) (LAdj F H Y)) (LAdj F H (Obj.Coprod X Y)) :=
   coprod (ladj _ _ (comp (unit F H) (map F (ladjMap _ _ inl))))
          (ladj _ _ (comp (unit F H) (map F (ladjMap _ _ inr))))
 
-unsafe def radjPreserveProd {C D : Cat} (F : Func C D) (H : HasRAdj F) {X Y : Obj D} :
+def radjPreserveProd {C D : Cat} (F : Func C D) (H : HasRAdj F) {X Y : Obj D} :
     Hom (Obj.Prod (RAdj F H X) (RAdj F H Y)) (RAdj F H (Obj.Prod X Y)) :=
   radj _ _ (prod (RAdjSymm _ H fst) (RAdjSymm _ H snd))
 
-unsafe def radjPreserveProdSymm {C D : Cat} (F : Func C D) (H : HasRAdj F) {X Y : Obj D} :
+def radjPreserveProdSymm {C D : Cat} (F : Func C D) (H : HasRAdj F) {X Y : Obj D} :
     Hom (RAdj F H (Obj.Prod X Y)) (Obj.Prod (RAdj F H X) (RAdj F H Y)) :=
   prod (radj _ _ (comp (map F (radjMap _ _ fst)) (counit F H)))
        (radj _ _ (comp (map F (radjMap _ _ snd)) (counit F H)))
 
-unsafe def preserveBotOfHasRAdj {C D : Cat} (F : Func C D) (H : HasRAdj F) :
+def preserveBotOfHasRAdj {C D : Cat} (F : Func C D) (H : HasRAdj F) :
     Hom (App F (Obj.Bot _)) (Obj.Bot _):=
   RAdjSymm _ H botMk
 
-unsafe def preserveTopOfHasLAdj {C D : Cat} (F : Func C D) (H : HasLAdj F) :
+def preserveTopOfHasLAdj {C D : Cat} (F : Func C D) (H : HasLAdj F) :
     Hom (Obj.Top _) (App F (Obj.Top _)) :=
   LAdjSymm _ H topMk
 
-unsafe def preserveCoprodOfHasRAdj {C D : Cat} (F : Func C D) (H : HasRAdj F) {X Y : Obj C} :
+def preserveCoprodOfHasRAdj {C D : Cat} (F : Func C D) (H : HasRAdj F) {X Y : Obj C} :
     Hom (App F (Obj.Coprod X Y)) (Obj.Coprod (App F X) (App F Y)) :=
   RAdjSymm _ H (coprod (radj _ _ inl) (radj _ _ inr))
 
@@ -293,7 +299,7 @@ def preserveCoprodOfHasRAdjSymm {C D : Cat} (F : Func C D) (H : HasRAdj F) {X Y 
     Hom (Obj.Coprod (App F X) (App F Y)) (App F (Obj.Coprod X Y)) :=
   coprod (map F inl) (map F inr)
 
-unsafe def preserveProdOfHasLAdj {C D : Cat} (F : Func C D) (H : HasLAdj F) {X Y : Obj C} :
+def preserveProdOfHasLAdj {C D : Cat} (F : Func C D) (H : HasLAdj F) {X Y : Obj C} :
     Hom (Obj.Prod (App F X) (App F Y)) (App F (Obj.Prod X Y)) :=
   LAdjSymm _ H (prod (ladj _ _ fst) (ladj _ _ snd))
 
@@ -303,13 +309,13 @@ def preserveProdOfHasLAdjSymm {C D : Cat} (F : Func C D) (H : HasLAdj F) {X Y : 
 
 section
 
-unsafe def asCorepr : ∀ {C : Cat} {X : CoreprObj C} {Y : Obj C}, Hom (Corepr X) Y → HomCorepr X Y
+def asCorepr : ∀ {C : Cat} {X : CoreprObj C} {Y : Obj C}, Hom (Corepr X) Y → HomCorepr X Y
   | _, _, _, Hom.corepr f => f
   | _, CoreprObj.Bot _, _, _ => HomCorepr.botMk
   | _, CoreprObj.Coprod X Y, _, f => HomCorepr.coprod (comp (ofEmb Emb.inl) f) (comp (ofEmb Emb.inr) f)
   | _, CoreprObj.LAdj F H X, _, f => HomCorepr.ladj _ _ (comp (ofEmb (Emb.unit F H)) (map F f))
 
-unsafe def asRepr : ∀ {C : Cat} {X : Obj C} {Y : ReprObj C}, Hom X (Repr Y) → HomRepr X Y
+def asRepr : ∀ {C : Cat} {X : Obj C} {Y : ReprObj C}, Hom X (Repr Y) → HomRepr X Y
   | _, _, _, Hom.repr f => f
   | _, _, ReprObj.Prod X Y, f => HomRepr.prod (comp f (ofProj Proj.fst)) (comp f (ofProj Proj.snd))
   | _, _, ReprObj.RAdj F H X, f => HomRepr.radj _ _ (comp (map F f) (ofProj (Proj.counit F H)))
@@ -343,51 +349,26 @@ I decided to do products before LAdj. Why? I don't think this applies if I insis
 
 open Hom
 
-unsafe def getTopMkComp :
-    ∀ {C : Cat} {X Y : Obj C} (f : Hom X Y), Option (Hom (Obj.Top _) Y)
-  | _, _, Obj.Top _, _ => some topMk
-  | _, _, Obj.Var _ _, _ => none
-  | _, X, _, repr (HomRepr.prod f g) =>
-    match getTopMkComp f, getTopMkComp g with
-    | some f', some g' => some (Hom.repr (HomRepr.prod f' g'))
-    | _, _ => none
-  | _, _, _, repr (HomRepr.radj F H f) =>
-    match getTopMkComp f with
-    | none => none
-    | some f => some (radj F H (topMk.comp f))
-  | _, _, Z, coprod f g =>
-      match getTopMkComp f, getTopMkComp g with
-      | some f, some g =>
-          let nf := normalize f
-          let ng := normalize g
-          if nf = ng then nf else none
-      | _, _ => none
-  | _, _, _, ladj _ _ _ => none
-  | _, _, _, Hom.map F f =>
-    if hL : HasLAdj F
-    then do return (LAdjSymm _ hL (comp topMk (← getTopMkComp f)))
-    else none
-  | _, _, _, projComp f g => getTopMkComp g
-  | _, _, _, compEmb f g => do return (compEmb (← getTopMkComp f) g)
-  | _, _, _, corepr HomCorepr.botMk => none
---What is shrinking?
-unsafe def getCompCoprodBotMk :
-    ∀ {C : Cat} {X Y : Obj C} (f : Hom X Y), Option (Σ R : CoreprObj C, Hom X (Corepr R) × HomCorepr R Y)
-  | _, Corepr (CoreprObj.Coprod _ _), _, f => some ⟨_, Hom.id, asCorepr f⟩
-  | _, Corepr (CoreprObj.Bot _), _, f => some ⟨_, Hom.id, asCorepr f⟩
+def getCompCorepr :
+    ∀ {C : Cat} {X Y : Obj C} (f : Hom X Y),
+      Option (Σ R : CoreprObj C, Hom X (Corepr R) × HomCorepr R Y × Bool)
+      --Bool is true if the `Hom X (Corepr R)` is the identity
+  | _, Corepr R, _, f => some ⟨_, Hom.id, asCorepr f, true⟩
   | _, _, _, var _ => none
   | _, _, _, topMk => none
+  | _, _, _, Hom.repr (HomRepr.radj F H f) => none
+  | _, _, _, map F f => none
   | _, _, _, projComp f g =>
-    match getCompCoprodBotMk g with
+    match getCompCorepr g with
     | none => none
-    | some ⟨R, g, h⟩ => some ⟨R, projComp f g , h⟩
-  | _, _, _, compEmb f g =>
-    match getCompCoprodBotMk f with
+    | some ⟨R, g, h, _⟩ => some ⟨R, projComp f g , h, false⟩
+  | _, _, _, compEmb f h =>
+    match getCompCorepr f with
     | none => none
-    | some ⟨R, f, h⟩ => some ⟨R, f, coreprComp h (ofEmb g)⟩
+    | some ⟨R, f, g, _⟩ => some ⟨R, f, coreprComp g (ofEmb h), false⟩
   | _, _, _, Hom.repr (HomRepr.prod f g) =>
-    match getCompCoprodBotMk f, getCompCoprodBotMk g with
-    | some ⟨R₁, f₁, f₂⟩, some ⟨R₂, g₁, g₂⟩ =>
+    match getCompCorepr f, getCompCorepr g with
+    | some ⟨R₁, f₁, f₂, _⟩, some ⟨R₂, g₁, g₂, _⟩ =>
         let nf := normalize f₁
         let ng := normalize g₁
         if hr : R₁ = R₂
@@ -396,69 +377,29 @@ unsafe def getCompCoprodBotMk :
               subst R₁
               match R₂, nf, f₂, g₂ with
               | _, nf, HomCorepr.coprod f₂ f₃, HomCorepr.coprod g₂ g₃ =>
-                exact some ⟨_, nf, HomCorepr.coprod (prod f₂ g₂) (prod f₃ g₃)⟩
-              | _, nf, HomCorepr.botMk, HomCorepr.botMk => exact some ⟨_, nf, HomCorepr.botMk⟩
+                exact some ⟨_, nf, HomCorepr.coprod (prod f₂ g₂) (prod f₃ g₃), false⟩
+              | _, nf, HomCorepr.botMk, HomCorepr.botMk => exact some ⟨_, nf, HomCorepr.botMk, false⟩
               | _, nf, HomCorepr.ladj _ _ _, _ => exact none
             else none
         else none
     | _, _ => none
-  | _, _, _, Hom.repr (HomRepr.radj F H f) => none
-  | _, _, _, map F f =>
-    if hR : HasRAdj F
-    then
-      match getCompCoprodBotMk f with
-      | none => none
-      | some ⟨R, f, h⟩ =>
-        match R, f, h with
-        | _, f, HomCorepr.botMk => some ⟨_, comp (map F f) (preserveBotOfHasRAdj _ hR), HomCorepr.botMk⟩
-        | _, f, HomCorepr.coprod g h =>
-          some ⟨_, (map F f).comp (RAdjSymm _ hR (coprod (radj _ _ inl)
-            (radj _ _ inr))), HomCorepr.coprod (map F g) (map F h)⟩
-        | _, _, _ => none
-    else none
-  | _, _, _, corepr (HomCorepr.ladj F H f) =>
-    match getCompCoprodBotMk f with
-    | none => none
-    | some ⟨R, f, g⟩ =>
-      match R, f, g with
-        | _, f, HomCorepr.botMk => some ⟨_, ladj _ _ (comp f botMk), HomCorepr.botMk⟩
-        | CoreprObj.Coprod X Y, f, HomCorepr.coprod g h =>
-            some ⟨CoreprObj.Coprod (LAdj _ H X) (LAdj _ H Y),
-              ladj F H (comp f (LAdjSymm _ H (ladjPreserveCoprod _ _))),
-              HomCorepr.coprod (ladj _ _ g) (ladj _ _ h)⟩
-        | _, _, _ => none
 
-unsafe def getProdComp :
-    ∀ {C : Cat} {X Y : Obj C} (f : Hom X Y), Option (Σ A B : Obj C, Hom X A × Hom X B × Hom (Prod A B) Y)
-  | _, _, Obj.Top _, f => none
-  | _, Corepr (CoreprObj.Coprod X Y), _, f => none
-  | _, Corepr (CoreprObj.Bot _), _, f => none
-  | _, _, Obj.Repr (ReprObj.Prod X Y), f => some ⟨X, Y, comp f fst, comp f snd, Hom.id⟩
+def getReprComp :
+    ∀ {C : Cat} {X Y : Obj C} (f : Hom X Y), Option (Σ R : ReprObj C, HomRepr X R × Hom (Repr R) Y × Bool)
+  | _, Corepr R, _, f => none
+  | _, _, Obj.Repr R, f => some ⟨_, asRepr f, Hom.id, true⟩
   | _, _, _, var _ => none
-  | _, _, _, compEmb f g =>
-    match getProdComp f with
-    | none => none
-    | some ⟨A, B, f₁, f₂, h⟩ => some ⟨A, B, f₁, f₂, compEmb h g⟩
+  | _, _, _, map F f => none
   | _, _, _, projComp f g =>
-    match getProdComp g with
+    match getReprComp g with
     | none => none
-    | some ⟨A, B, g₁, g₂, h⟩ => some ⟨A, B, projComp f g₁, projComp f g₂, h⟩
-  | _, _, _, corepr (HomCorepr.ladj _ _ _) => none
-  | _, _, _, map F f =>
-    if hL : HasLAdj F
-    then
-      match getProdComp f with
-      | none => none
-      | some ⟨A, B, f₁, f₂, f₃⟩ => some ⟨_, _, map F f₁, map F f₂,
-          comp (LAdjSymm _ hL (prod (ladj _ _ fst) (ladj _ _ snd))) (map F f₃)⟩
-    else none
-  | _, _, _, Hom.repr (HomRepr.radj F H f) =>
-      match getProdComp f with
-      | none => none
-      | some ⟨A, B, f₁, f₂, f₃⟩ => some ⟨_, _, repr (HomRepr.radj F H f₁), repr (HomRepr.radj F H f₂),
-          radj F H (comp (RAdjSymm _ H (radjPreserveProd _ _)) f₃)⟩
+    | some ⟨R, g, h, _⟩ => some ⟨R, compRepr (ofProj f) g, h, false⟩
+  | _, _, _, compEmb f h =>
+    match getReprComp f with
+    | none => none
+    | some ⟨R, f, g, _⟩ => some ⟨R, f, compEmb g h, false⟩
 
-unsafe def normalize : ∀ {C : Cat} {X Y : Obj C} (f : Hom X Y), Hom X Y := sorry
+def normalize : ∀ {C : Cat} {X Y : Obj C} (f : Hom X Y), Hom X Y := sorry
 
 end
 
