@@ -43,13 +43,13 @@ end
 
 @[simp]
 def Obj.size : ∀ {C : Cat} (X : Obj C), ℕ
-  | _, Obj.Corepr (CoreprObj.Coprod X Y) => 2 + Obj.size X + Obj.size Y
-  | _, Obj.Corepr (CoreprObj.LAdj F H X) => 3 + Obj.size X
+  | _, Obj.Corepr (CoreprObj.Coprod X Y) => 1 + Obj.size X + Obj.size Y
+  | _, Obj.Corepr (CoreprObj.LAdj F H X) => 2 + Obj.size X
   | _, Obj.Corepr (CoreprObj.Bot C) => 1
   | _, Obj.Var C n => 1
   | _, Obj.App F X => 1 + Obj.size X
-  | _, Obj.Repr (ReprObj.Prod X Y) => 2 + Obj.size X + Obj.size Y
-  | _, Obj.Repr (ReprObj.RAdj F H X) => 3 + Obj.size X
+  | _, Obj.Repr (ReprObj.Prod X Y) => 1 + Obj.size X + Obj.size Y
+  | _, Obj.Repr (ReprObj.RAdj F H X) => 2 + Obj.size X
   | _, Obj.Repr (ReprObj.Top C) => 1
 
 open Obj
@@ -215,20 +215,20 @@ def comp : ∀ {C : Cat} {X Y Z : Obj C}, Hom X Y → Hom Y Z → Hom X Z
   | _, _, _, _, Hom.corepr f, g => corepr (coreprComp f g)
   | _, _, _, _, f, Hom.repr g => repr (compRepr f g)
   | _, W, Y, Z, Hom.projComp (Y := X) f g, h =>
-    have : size X + size Z + 1 < size W + size Z + 1 :=
+    have : size X + size Z < size W + size Z :=
       by linarith [size_lt_of_proj f]
     Hom.projComp f (comp g h)
   | _, W, X, Z, f, Hom.compEmb (Y := Y) g h =>
-    have : size W + size Y + 1 < size W + size Z + 1 :=
+    have : size W + size Y < size W + size Z :=
       by linarith [size_lt_of_emb h]
     compEmb (f.comp g) h
   | _, _, _, _, prod f g, projComp Proj.fst h => comp f h
   | _, W, Obj.Prod X Y, Z, prod f g, projComp Proj.snd h =>
-    have : size Y < 2 + size X + size Y := by linarith
+    have : size Y < 1 + size X + size Y := by linarith
     comp g h
   | _, _, _, _, compEmb f Emb.inl, coprod g h => f.comp g
   | _, W, Obj.Coprod X Y, Z, compEmb f Emb.inr, coprod g h =>
-    have : size Y < 2 + size X + size Y := by linarith
+    have : size Y < 1 + size X + size Y := by linarith
     f.comp h
   | _, _, _, _, var f, var g => var (HomVar.comp f g)
   | _, _, _, _, map F f, map _ g => map _ (comp f g)
@@ -239,7 +239,7 @@ def comp : ∀ {C : Cat} {X Y Z : Obj C}, Hom X Y → Hom Y Z → Hom X Z
   | _, _, _, _, _, _ => sorry
 
 end
-termination_by comp C X Y Z f g => (size X + size Z + 1, size Y, 1)
+termination_by comp C X Y Z f g => (size X + size Z, size Y, 1)
                coreprComp C X Y Z f g => (size (Corepr X) + size Z, size Y, 0)
                compRepr C X Y Z f g => (size X + size (Repr Z), size Y, 0)
 
@@ -338,7 +338,7 @@ Normal forms
     Try to make sure `f` is not of that form
     Also `corepr g` should remain a subterm after `f` and `corepr g` are composed and cut eliminated.
 - If it can be written as `repr_mk ; f` then it is unless the first rule applies.
-- Not sure what else there is.
+- Not sure what else there is, just associativity of `projComp` and `compEmb`
 -/
 
 /-
@@ -398,6 +398,18 @@ def getReprComp :
     match getReprComp f with
     | none => none
     | some ⟨R, f, g, _⟩ => some ⟨R, f, compEmb g h, false⟩
+
+def normalizeCorepr : ∀ {C : Cat} {X : CoreprObj C} {Y : Obj C} (f : HomCorepr X Y),
+    HomCorepr X Y
+  | _, _, _, HomCorepr.coprod f g => HomCorepr.coprod (normalize f) (normalize g)
+  | _, _, _, HomCorepr.botMk => HomCorepr.botMk
+  | _, _, _, HomCorepr.ladj F H f => HomCorepr.ladj F H (normalize f)
+
+def normalizeRepr : ∀ {C : Cat} {X : Obj C} {Y : ReprObj C} (f : HomRepr X Y),
+    HomRepr X Y
+  | _, _, _, HomRepr.radj F H f => HomRepr.radj F H (normalize f)
+  | _, _, _, HomRepr.prod f g => HomRepr.prod (normalize f) (normalize g)
+  | _, _, _, HomRepr.topMk => HomRepr.topMk
 
 def normalize : ∀ {C : Cat} {X Y : Obj C} (f : Hom X Y), Hom X Y := sorry
 
