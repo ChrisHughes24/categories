@@ -24,59 +24,91 @@ open CatSystem
 mutual
 
 inductive CoreprObj : Cat → Type
-  | Coprod {C : Cat} (X Y : Obj C) : CoreprObj C
-  | LAdj {C D : Cat} (F : Func C D) : HasLAdj F → Obj D → CoreprObj C
+  | Coprod {C : Cat} (X Y : PreObj C) : CoreprObj C
+  | LAdj {C D : Cat} (F : Func C D) : HasLAdj F → PreObj D → CoreprObj C
   | Bot : (C : Cat) → CoreprObj C
 
 inductive ReprObj : Cat → Type
-  | Prod {C : Cat} : Obj C → Obj C → ReprObj C
-  | RAdj {C D : Cat} (F : Func C D) : HasRAdj F → Obj D → ReprObj C
+  | Prod {C : Cat} : PreObj C → PreObj C → ReprObj C
+  | RAdj {C D : Cat} (F : Func C D) : HasRAdj F → PreObj D → ReprObj C
   | Top : (C : Cat) → ReprObj C
 
-inductive Obj : Cat → Type
-  | Corepr : ∀ {C : Cat}, CoreprObj C → Obj C
-  | Var : (C : Cat) → ℕ → Obj C
-  | App' : ∀ {C D : Cat}, Func C D → Obj C → Obj D
-  | Repr : ∀ {C : Cat}, ReprObj C → Obj C
+inductive PreObj : Cat → Type
+  | Corepr : ∀ {C : Cat}, CoreprObj C → PreObj C
+  | Var : (C : Cat) → ℕ → PreObj C
+  | App' : ∀ {C D : Cat}, Func C D → PreObj C → PreObj D
+  | Repr : ∀ {C : Cat}, ReprObj C → PreObj C
 
 end
 
-@[simp]
-def Obj.size : ∀ {C : Cat} (X : Obj C), ℕ
-  | _, Obj.Corepr (CoreprObj.Coprod X Y) => 1 + max (Obj.size X) (Obj.size Y)
-  | _, Obj.Corepr (CoreprObj.LAdj F H X) => 2 + (Obj.size X)
-  | _, Obj.Corepr (CoreprObj.Bot C) => 1
-  | _, Obj.Var C n => 1
-  | _, Obj.App' F X => 1 + Obj.size X
-  | _, Obj.Repr (ReprObj.Prod X Y) => 1 + max (Obj.size X) (Obj.size Y)
-  | _, Obj.Repr (ReprObj.RAdj F H X) => 2 + Obj.size X
-  | _, Obj.Repr (ReprObj.Top C) => 1
+open PreObj
 
-open Obj
 
 @[match_pattern, simp]
-nonrec def Obj.Coprod {C : Cat} (X Y : Obj C) : Obj C :=
+nonrec def PreObj.Coprod {C : Cat} (X Y : PreObj C) : PreObj C :=
   Corepr (CoreprObj.Coprod X Y)
 
 @[match_pattern, simp]
-nonrec def Obj.Prod {C : Cat} (X Y : Obj C) : Obj C :=
-  Obj.Repr (ReprObj.Prod X Y)
+nonrec def PreObj.Prod {C : Cat} (X Y : PreObj C) : PreObj C :=
+  PreObj.Repr (ReprObj.Prod X Y)
 
 @[match_pattern, simp]
-nonrec def Obj.LAdj {C D : Cat} (F : Func C D) (H : HasLAdj F) (X : Obj D) : Obj C :=
+nonrec def PreObj.LAdj {C D : Cat} (F : Func C D) (H : HasLAdj F) (X : PreObj D) : PreObj C :=
   Corepr (CoreprObj.LAdj F H X)
 
 @[match_pattern, simp]
-nonrec def Obj.RAdj {C D : Cat} (F : Func C D) (H : HasRAdj F) (X : Obj D) : Obj C :=
-  Obj.Repr (ReprObj.RAdj F H X)
+nonrec def PreObj.RAdj {C D : Cat} (F : Func C D) (H : HasRAdj F) (X : PreObj D) : PreObj C :=
+  PreObj.Repr (ReprObj.RAdj F H X)
 
 @[match_pattern]
-nonrec def Obj.Bot (C : Cat) : Obj C :=
+nonrec def PreObj.Bot (C : Cat) : PreObj C :=
   Corepr (CoreprObj.Bot C)
 
 @[match_pattern]
-nonrec def Obj.Top (C : Cat) : Obj C :=
-  Obj.Repr (ReprObj.Top C)
+nonrec def PreObj.Top (C : Cat) : PreObj C :=
+  PreObj.Repr (ReprObj.Top C)
+
+@[simp]
+def App : ∀ {C D : Cat} (F : Func C D) (X : PreObj C), PreObj D
+  | _, _, F, Coprod X Y =>
+    if hR : HasRAdj F
+    then Coprod (App F X) (App F Y)
+    else App' F (Coprod X Y)
+  | _, _, F, PreObj.Prod X Y =>
+    if hL : HasLAdj F
+    then Prod (App F X) (App F Y)
+    else App' F (PreObj.Prod X Y)
+  | _, _, F, PreObj.Bot _ =>
+    if hR : HasRAdj F
+    then PreObj.Bot _
+    else App' F (PreObj.Bot _)
+  | _, _, F, PreObj.Top _ =>
+    if hL : HasLAdj F
+    then PreObj.Top _
+    else App' F (PreObj.Top _)
+  | _, _, F, X => App' F X
+
+@[simp]
+def PreObj.size : ∀ {C : Cat} (X : PreObj C), ℕ
+  | _, Corepr (CoreprObj.Coprod X Y) => 1 + max (size X) (size Y)
+  | _, Corepr (CoreprObj.LAdj F H X) => 2 + size X
+  | _, Corepr (CoreprObj.Bot C) => 1
+  | _, Var C n => 1
+  | _, App' F X => 1 + size X
+  | _, Repr (ReprObj.Prod X Y) => 1 + max (size X) (size Y)
+  | _, Repr (ReprObj.RAdj F H X) => 2 + size X
+  | _, Repr (ReprObj.Top C) => 1
+
+inductive Valid : ∀ {C : Cat} (X : PreObj C), Prop
+  | Corepr : ∀ {C : Cat} (X : CoreprObj C), Valid (Corepr X)
+  | Var : ∀ {C : Cat} (n : ℕ), Valid (Var C n)
+  | App : ∀ {C D : Cat} (F : Func C D) (X : PreObj C), Valid X → Valid (App F X)
+  | Repr : ∀ {C : Cat} (X : ReprObj C), Valid (PreObj.Repr X)
+
+def Obj (C : Cat) := { X : PreObj C // Valid X }
+
+open PreObj
+
 
 inductive HomVar (C : Cat) : (X Y : ℕ) → Type
   | id : ∀ (X : ℕ), HomVar C X X
@@ -87,42 +119,7 @@ def HomVar.comp {C : Cat} : ∀ {X Y Z : ℕ} (f : HomVar C X Y) (g : HomVar C Y
   | _, _, _, HomVar.id _, f => f
   | _, _, _, HomVar.varComp n f, g => HomVar.varComp n (HomVar.comp f g)
 
-def AppOfHasRAdj : ∀ {C D : Cat} (F : Func C D) (X : Obj C), Obj D
-  | _, _, F, Obj.Coprod X Y => Coprod (AppOfHasRAdj F X) (AppOfHasRAdj F Y)
-  | _, _, _, Obj.Bot _ => Obj.Bot _
-  | _, _, F, X => App' F X
 
-def AppOfHasLAdj : ∀ {C D : Cat} (F : Func C D) (X : Obj C), Obj D
-  | _, _, F, Obj.Prod X Y => Prod (AppOfHasLAdj F X) (AppOfHasLAdj F Y)
-  | _, _, _, Obj.Top _ => Obj.Top _
-  | _, _, F, X => App' F X
-
-def AppOfHasLAdjHasRAdj : ∀ {C D : Cat} (F : Func C D) (X : Obj C), Obj D
-  | _, _, F, Obj.Coprod X Y => Coprod (AppOfHasLAdjHasRAdj F X) (AppOfHasLAdjHasRAdj F Y)
-  | _, _, F, Obj.Prod X Y => Prod (AppOfHasLAdjHasRAdj F X) (AppOfHasLAdjHasRAdj F Y)
-  | _, _, _, Obj.Bot _ => Obj.Bot _
-  | _, _, _, Obj.Top _ => Obj.Top _
-  | _, _, F, X => App' F X
-
-@[simp]
-def App : ∀ {C D : Cat} (F : Func C D) (X : Obj C), Obj D
-  | _, _, F, Obj.Coprod X Y =>
-    if hR : HasRAdj F
-    then Coprod (App F X) (App F Y)
-    else App' F (Obj.Coprod X Y)
-  | _, _, F, Obj.Prod X Y =>
-    if hL : HasLAdj F
-    then Prod (App F X) (App F Y)
-    else App' F (Obj.Prod X Y)
-  | _, _, F, Obj.Bot _ =>
-    if hR : HasRAdj F
-    then Obj.Bot _
-    else App' F (Obj.Bot _)
-  | _, _, F, Obj.Top _ =>
-    if hL : HasLAdj F
-    then Obj.Top _
-    else App' F (Obj.Top _)
-  | _, _, F, X => App' F X
 
 theorem size_app : ∀ {C D : Cat} (F : Func C D) (X : Obj C), size (App F X) ≤ 1 + size X := sorry
 
