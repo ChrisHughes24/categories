@@ -19,8 +19,6 @@ attribute [instance] CatSystem.decEq CatSystem.decidableLAdj CatSystem.decidable
 
 open CatSystem
 
---TODO : think about how adjoint preserve products.
-
 mutual
 
 inductive CoreprObj : Cat → Type
@@ -42,7 +40,6 @@ inductive PreObj : Cat → Type
 end
 
 open PreObj
-
 
 @[match_pattern, simp]
 nonrec def PreObj.Coprod {C : Cat} (X Y : PreObj C) : PreObj C :=
@@ -69,7 +66,7 @@ nonrec def PreObj.Top (C : Cat) : PreObj C :=
   PreObj.Repr (ReprObj.Top C)
 
 @[simp]
-def App : ∀ {C D : Cat} (F : Func C D) (X : PreObj C), PreObj D
+def PreObj.App : ∀ {C D : Cat} (F : Func C D) (X : PreObj C), PreObj D
   | _, _, F, Coprod X Y =>
     if hR : HasRAdj F
     then Coprod (App F X) (App F Y)
@@ -99,16 +96,43 @@ def PreObj.size : ∀ {C : Cat} (X : PreObj C), ℕ
   | _, Repr (ReprObj.RAdj F H X) => 2 + size X
   | _, Repr (ReprObj.Top C) => 1
 
-inductive Valid : ∀ {C : Cat} (X : PreObj C), Prop
-  | Corepr : ∀ {C : Cat} (X : CoreprObj C), Valid (Corepr X)
+inductive PreObj.Valid : ∀ {C : Cat} (X : PreObj C), Prop
   | Var : ∀ {C : Cat} (n : ℕ), Valid (Var C n)
   | App : ∀ {C D : Cat} (F : Func C D) (X : PreObj C), Valid X → Valid (App F X)
-  | Repr : ∀ {C : Cat} (X : ReprObj C), Valid (PreObj.Repr X)
+  | Bot : ∀ {C : Cat}, Valid (Bot C)
+  | Top : ∀ {C : Cat}, Valid (Top C)
+  | Coprod : ∀ {C : Cat} (X Y : PreObj C), Valid X → Valid Y → Valid (Coprod X Y)
+  | Prod : ∀ {C : Cat} (X Y : PreObj C), Valid X → Valid Y → Valid (Prod X Y)
+  | LAdj : ∀ {C D : Cat} (F : Func C D) (H : HasLAdj F) (X : PreObj D), Valid X → Valid (LAdj F H X)
+  | RAdj : ∀ {C D : Cat} (F : Func C D) (H : HasRAdj F) (X : PreObj D), Valid X → Valid (RAdj F H X)
 
-def Obj (C : Cat) := { X : PreObj C // Valid X }
+def Obj (C : Cat) := { X : PreObj C // X.Valid }
 
-open PreObj
+namespace Obj
 
+def size {C : Cat} (X : Obj C) : ℕ := PreObj.size X.val
+
+def Var {C : Cat} (n : ℕ) : Obj C := ⟨ PreObj.Var C n, Valid.Var n ⟩
+
+def App {C D : Cat} (F : Func C D) (X : Obj C) : Obj D := ⟨ PreObj.App F X.val, Valid.App F X.val X.2 ⟩
+
+def Coprod {C : Cat} (X Y : Obj C) : Obj C := ⟨ PreObj.Coprod X.val Y.val, Valid.Coprod X.val Y.val X.2 Y.2 ⟩
+
+def Prod {C : Cat} (X Y : Obj C) : Obj C := ⟨ PreObj.Prod X.val Y.val, Valid.Prod X.val Y.val X.2 Y.2 ⟩
+
+def Bot {C : Cat} : Obj C := ⟨ PreObj.Bot C, Valid.Bot ⟩
+
+def Top {C : Cat} : Obj C := ⟨ PreObj.Top C, Valid.Top ⟩
+
+def LAdj {C D : Cat} (F : Func C D) (H : HasLAdj F) (X : Obj D) : Obj C :=
+  ⟨ PreObj.LAdj F H X.val, Valid.LAdj F H X.val X.2 ⟩
+
+def RAdj {C D : Cat} (F : Func C D) (H : HasRAdj F) (X : Obj D) : Obj C :=
+  ⟨ PreObj.RAdj F H X.val, Valid.RAdj F H X.val X.2 ⟩
+
+theorem size_app : ∀ {C D : Cat} (F : Func C D) (X : Obj C), size (App F X) ≤ 1 + size X := sorry
+
+end Obj
 
 inductive HomVar (C : Cat) : (X Y : ℕ) → Type
   | id : ∀ (X : ℕ), HomVar C X X
@@ -119,9 +143,7 @@ def HomVar.comp {C : Cat} : ∀ {X Y Z : ℕ} (f : HomVar C X Y) (g : HomVar C Y
   | _, _, _, HomVar.id _, f => f
   | _, _, _, HomVar.varComp n f, g => HomVar.varComp n (HomVar.comp f g)
 
-
-
-theorem size_app : ∀ {C D : Cat} (F : Func C D) (X : Obj C), size (App F X) ≤ 1 + size X := sorry
+open PreObj
 
 mutual
 
@@ -129,81 +151,104 @@ mutual
 -- map F (LAdj _ _ _) ; counit : App F (LAdj G _ _) -> App F (Radj F _ _)
 -- map F (projComp (fst or snd)) ; counit : App F (X × _) -> App F (Radj F _ X) -/
 
-inductive ProdProj : ∀ {C : Cat}, Obj C → Obj C → Obj C → Type
-  | fst : ∀ {X Y : Obj C}, ProdProj X Y X
-  | snd : ∀ {X Y : Obj C}, ProdProj X Y Y
+inductive ProdProj : ∀ {C : Cat}, PreObj C → PreObj C → PreObj C → Type
+  | fst : ∀ {X Y : PreObj C}, ProdProj X Y X
+  | snd : ∀ {X Y : PreObj C}, ProdProj X Y Y
 
-inductive CompCounit : ∀ {C D : Cat}, Obj D → Obj C → Type
-  | counit : ∀ {C D : Cat} (F : Func D C) (H : HasRAdj F) (X : Obj C),
+inductive CompCounit : ∀ {C D : Cat}, PreObj D → PreObj C → Type
+  | counit : ∀ {C D : Cat} (F : Func D C) (H : HasRAdj F) (X : PreObj C),
       CompCounit (RAdj F H X) X
   | mapLAdjCompCounit : ∀ {C D E : Cat} (F : Func C D) (G : Func C E) (HF : HasLAdj F) (HG : HasRAdj G)
-      {X : Obj D} {Y : Obj E} (f : Hom X (App F (RAdj G HG Y))), CompCounit (LAdj F HF X) Y
-  | mapProjComp : ∀ {C : Cat} {W X Y Z : Obj C} (f : ProdProj W X Y) (g : CompCounit Y Z),
+      {X : PreObj D} {Y : PreObj E} (f : PreHom X (App F (RAdj G HG Y))), CompCounit (LAdj F HF X) Y
+  | mapProjComp : ∀ {C : Cat} {W X Y Z : PreObj C} (f : ProdProj W X Y) (g : CompCounit Y Z),
       CompCounit (Prod X Y) Z
 
-inductive Proj : ∀ {C : Cat}, Obj C → Obj C → Type
-  | prodProj : ∀ {X Y Z : Obj C}, ProdProj X Y Z → Proj (Prod X Y) Z
-  | compCounit : ∀ {C D : Cat} (F : Func D C) (H : HasRAdj F) {X : Obj D} {Y : Obj C}
+inductive Proj : ∀ {C : Cat}, PreObj C → PreObj C → Type
+  | prodProj : ∀ {X Y Z : PreObj C}, ProdProj X Y Z → Proj (Prod X Y) Z
+  | compCounit : ∀ {C D : Cat} (F : Func D C) (H : HasRAdj F) {X : PreObj D} {Y : PreObj C}
       (f : CompCounit X Y), Proj (App' F X) Y
 
-inductive HomCorepr : {C : Cat} → CoreprObj C → Obj C → Type
-  | coprod {C : Cat} {X Y Z : Obj C} (f : Hom X Z) (g : Hom Y Z) : HomCorepr (CoreprObj.Coprod X Y) Z
-  | ladj {C D : Cat} (F : Func C D) (H : HasLAdj F) {X : Obj D} {Y : Obj C}
-      (f : Hom X (App F Y)) : HomCorepr (CoreprObj.LAdj F H X) Y
-  | botMk {C : Cat} {X : Obj C} : HomCorepr (CoreprObj.Bot C) X
+inductive HomCorepr : {C : Cat} → CoreprObj C → PreObj C → Type
+  | coprod {C : Cat} {X Y Z : PreObj C} (f : PreHom X Z) (g : PreHom Y Z) : HomCorepr (CoreprObj.Coprod X Y) Z
+  | ladj {C D : Cat} (F : Func C D) (H : HasLAdj F) {X : PreObj D} {Y : PreObj C}
+      (f : PreHom X (App F Y)) : HomCorepr (CoreprObj.LAdj F H X) Y
+  | botMk {C : Cat} {X : PreObj C} : HomCorepr (CoreprObj.Bot C) X
 
-inductive CoprodEmb : ∀ {C : Cat}, Obj C → Obj C → Obj C → Type
-  | inl : ∀ {X Y : Obj C}, CoprodEmb X X Y
-  | inr : ∀ {X Y : Obj C}, CoprodEmb Y X Y
+inductive CoprodEmb : ∀ {C : Cat}, PreObj C → PreObj C → PreObj C → Type
+  | inl : ∀ {X Y : PreObj C}, CoprodEmb X X Y
+  | inr : ∀ {X Y : PreObj C}, CoprodEmb Y X Y
 
-inductive UnitComp : ∀ {C D : Cat}, Obj C → Obj D → Type
-  | unit : ∀ {C D : Cat} (F : Func D C) (H : HasLAdj F) (X : Obj C),
+inductive UnitComp : ∀ {C D : Cat}, PreObj C → PreObj D → Type
+  | unit : ∀ {C D : Cat} (F : Func D C) (H : HasLAdj F) (X : PreObj C),
       UnitComp X (LAdj F H X)
   | unitCompMapRAdj : ∀ {C D E : Cat} (F : Func C D) (G : Func C E) (HF : HasRAdj F) (HG : HasLAdj G)
-      {X : Obj E} {Y : Obj D} (f : Hom (App F (LAdj G HG X)) Y), UnitComp X (RAdj F HF Y)
-  | compMapEmb : ∀ {C : Cat} {W X Y Z : Obj C} (f : UnitComp W X) (g : CoprodEmb X Y Z),
+      {X : PreObj E} {Y : PreObj D} (f : PreHom (App F (LAdj G HG X)) Y), UnitComp X (RAdj F HF Y)
+  | compMapEmb : ∀ {C : Cat} {W X Y Z : PreObj C} (f : UnitComp W X) (g : CoprodEmb X Y Z),
       UnitComp W (Coprod Y Z)
 
-inductive Emb : ∀ {C : Cat}, Obj C → Obj C → Type
-  | coprodEmb : ∀ {X Y Z : Obj C}, CoprodEmb X Y Z → Emb (Coprod X Y) Z
-  | unitComp : ∀ {C D : Cat} (F : Func D C) (H : HasLAdj F) {X : Obj C} {Y : Obj D}
+inductive Emb : ∀ {C : Cat}, PreObj C → PreObj C → Type
+  | coprodEmb : ∀ {X Y Z : PreObj C}, CoprodEmb X Y Z → Emb X (Coprod Y Z)
+  | unitComp : ∀ {C D : Cat} (F : Func D C) (H : HasLAdj F) {X : PreObj C} {Y : PreObj D}
       (f : UnitComp X Y), Emb X (App' F Y)
 
-inductive HomRepr : {C : Cat} → Obj C → ReprObj C → Type
-  | prod {C : Cat} {X : Obj C} {Y Z : Obj C}
-    (f : Hom X Y) (g : Hom X Z) : HomRepr X (ReprObj.Prod Y Z)
-  | radj {C D : Cat} (F : Func C D) (H : HasRAdj F) {X : Obj C} {Y : Obj D}
-    (f : Hom (App F X) Y) : HomRepr X (ReprObj.RAdj F H Y)
-  | topMk {C : Cat} {X : Obj C} : HomRepr X (ReprObj.Top C)
+inductive HomRepr : {C : Cat} → PreObj C → ReprObj C → Type
+  | prod {C : Cat} {X : PreObj C} {Y Z : PreObj C}
+    (f : PreHom X Y) (g : PreHom X Z) : HomRepr X (ReprObj.Prod Y Z)
+  | radj {C D : Cat} (F : Func C D) (H : HasRAdj F) {X : PreObj C} {Y : PreObj D}
+    (f : PreHom (App F X) Y) : HomRepr X (ReprObj.RAdj F H Y)
+  | topMk {C : Cat} {X : PreObj C} : HomRepr X (ReprObj.Top C)
 
-inductive Hom : ∀ {C : Cat}, Obj C → Obj C → Type
-  | projComp : ∀ {C : Cat} {X Y Z : Obj C} (f : Proj X Y) (g : Hom Y Z), Hom X Z
-  | compEmb : ∀ {C : Cat} {X : Obj C} {Y Z : Obj C} (f : Hom X Y) (g : Emb Y Z), Hom X Z
-  | corepr : ∀ {C : Cat} {X : CoreprObj C} {Y : Obj C} (f : HomCorepr X Y), Hom (Corepr X) Y
-  | repr : ∀ {C : Cat} {X : Obj C} {Y : ReprObj C} (f : HomRepr X Y), Hom X (Repr Y)
-  | map' : ∀ {C D : Cat} {X Y : Obj C} (F : Func C D) (f : Hom X Y), Hom (App' F X) (App' F Y)
-  | var : ∀ {C : Cat} {X Y : ℕ}, HomVar C X Y → Hom (Var C X) (Var C Y)
+inductive PreHom : ∀ {C : Cat}, PreObj C → PreObj C → Type
+  | projComp : ∀ {C : Cat} {X Y Z : PreObj C} (f : Proj X Y) (g : PreHom Y Z), PreHom X Z
+  | compEmb : ∀ {C : Cat} {X : PreObj C} {Y Z : PreObj C} (f : PreHom X Y) (g : Emb Y Z), PreHom X Z
+  | corepr : ∀ {C : Cat} {X : CoreprObj C} {Y : PreObj C} (f : HomCorepr X Y), PreHom (Corepr X) Y
+  | repr : ∀ {C : Cat} {X : PreObj C} {Y : ReprObj C} (f : HomRepr X Y), PreHom X (Repr Y)
+  | map' : ∀ {C D : Cat} {X Y : PreObj C} (F : Func C D) (f : PreHom X Y), PreHom (App' F X) (App' F Y)
+  | var : ∀ {C : Cat} {X Y : ℕ}, HomVar C X Y → PreHom (Var C X) (Var C Y)
 
 /- Provided LAdj is bigger than map, every Hom constructor make homs from homs between smaller objects.
 By smaller I mean that -/
 
 end
 
-theorem size_lt_of_emb {C : Cat} {X Y : Obj C} (f : Emb X Y) : Obj.size X < Obj.size Y := sorry
+def Proj.fst {C : Cat} {X Y : PreObj C} : Proj (Prod X Y) X :=
+  prodProj ProdProj.fst
 
-theorem size_lt_of_proj {C : Cat} {X Y : Obj C} (f : Proj X Y) : Obj.size Y < Obj.size X := sorry
+def Proj.snd {C : Cat} {X Y : PreObj C} : Proj (Prod X Y) Y :=
+  prodProj ProdProj.snd
 
-namespace Hom
+def Proj.counit {C : Cat} {D : Cat} (F : Func D C) (H : HasRAdj F) {X : PreObj C} :
+    Proj (App' F (RAdj F H X)) X :=
+  compCounit F H (CompCounit.counit F H X)
 
-def id : ∀ {C : Cat} {X : Obj C}, Hom X X
-  | _, Obj.Var C X => Hom.var (HomVar.id _)
-  | _, Obj.App' F X => Hom.map' F Hom.id
-  | _, Obj.Repr (ReprObj.Prod X Y) => repr (HomRepr.prod (Hom.projComp Proj.fst Hom.id) (Hom.projComp Proj.snd Hom.id))
-  | _, Obj.Repr (ReprObj.RAdj F H Y) => repr (HomRepr.radj F H (Hom.projComp (Proj.counit F H) Hom.id))
-  | _, Obj.Repr (ReprObj.Top C) => repr HomRepr.topMk
-  | _, Obj.Corepr (CoreprObj.Coprod X Y) => corepr (HomCorepr.coprod (Hom.compEmb Hom.id Emb.inl) (Hom.compEmb Hom.id Emb.inr))
-  | _, Obj.Corepr (CoreprObj.LAdj F H X) => corepr (HomCorepr.ladj F H (Hom.compEmb Hom.id (Emb.unit F H)))
-  | _, Obj.Corepr (CoreprObj.Bot C) => corepr HomCorepr.botMk
+def Emb.inl {C : Cat} {X Y : PreObj C} : Emb X (Coprod X Y) :=
+  coprodEmb CoprodEmb.inl
+
+def Emb.inr {C : Cat} {X Y : PreObj C} : Emb Y (Coprod X Y) :=
+  coprodEmb CoprodEmb.inr
+
+def Emb.unit {C : Cat} {D : Cat} (F : Func D C) (H : HasLAdj F) {X : PreObj C} :
+    Emb X (App' F (LAdj F H X)) :=
+  unitComp F H (UnitComp.unit F H X)
+
+theorem size_lt_of_emb {C : Cat} {X Y : PreObj C} (f : Emb X Y) : PreObj.size X < PreObj.size Y := sorry
+
+theorem size_lt_of_proj {C : Cat} {X Y : PreObj C} (f : Proj X Y) : PreObj.size Y < PreObj.size X := sorry
+
+def Hom {C : Cat} (X Y : Obj C) : Type :=
+  PreHom X.1 Y.1
+
+namespace PreHom
+
+def id : ∀ {C : Cat} {X : PreObj C}, PreHom X X
+  | _, PreObj.Var C X => PreHom.var (HomVar.id _)
+  | _, PreObj.App' F X => PreHom.map' F PreHom.id
+  | _, PreObj.Repr (ReprObj.Prod X Y) => repr (HomRepr.prod (PreHom.projComp Proj.fst PreHom.id) (PreHom.projComp Proj.snd PreHom.id))
+  | _, PreObj.Repr (ReprObj.RAdj F H Y) => repr (HomRepr.radj F H (PreHom.projComp (Proj.counit F H) PreHom.id))
+  | _, PreObj.Repr (ReprObj.Top C) => repr HomRepr.topMk
+  | _, PreObj.Corepr (CoreprObj.Coprod X Y) => corepr (HomCorepr.coprod (Hom.compEmb Hom.id Emb.inl) (Hom.compEmb Hom.id Emb.inr))
+  | _, PreObj.Corepr (CoreprObj.LAdj F H X) => corepr (HomCorepr.ladj F H (Hom.compEmb Hom.id (Emb.unit F H)))
+  | _, PreObj.Corepr (CoreprObj.Bot C) => corepr HomCorepr.botMk
 
 def ofEmb {C : Cat} {X Y : Obj C} (f : Emb X Y) : Hom X Y :=
   compEmb Hom.id f
