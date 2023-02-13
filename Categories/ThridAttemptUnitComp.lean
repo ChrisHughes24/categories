@@ -36,19 +36,19 @@ inductive ReprObj : Cat → Type
 inductive Obj : Cat → Type
   | Corepr : ∀ {C : Cat}, CoreprObj C → Obj C
   | Var : (C : Cat) → ℕ → Obj C
-  | App : ∀ {C D : Cat}, Func C D → Obj C → Obj D
+  | App' : ∀ {C D : Cat}, Func C D → Obj C → Obj D
   | Repr : ∀ {C : Cat}, ReprObj C → Obj C
 
 end
 
 @[simp]
 def Obj.size : ∀ {C : Cat} (X : Obj C), ℕ
-  | _, Obj.Corepr (CoreprObj.Coprod X Y) => 1 + Obj.size X + Obj.size Y
-  | _, Obj.Corepr (CoreprObj.LAdj F H X) => 2 + Obj.size X
+  | _, Obj.Corepr (CoreprObj.Coprod X Y) => 1 + max (Obj.size X) (Obj.size Y)
+  | _, Obj.Corepr (CoreprObj.LAdj F H X) => 2 + (Obj.size X)
   | _, Obj.Corepr (CoreprObj.Bot C) => 1
   | _, Obj.Var C n => 1
-  | _, Obj.App F X => 1 + Obj.size X
-  | _, Obj.Repr (ReprObj.Prod X Y) => 1 + Obj.size X + Obj.size Y
+  | _, Obj.App' F X => 1 + Obj.size X
+  | _, Obj.Repr (ReprObj.Prod X Y) => 1 + max (Obj.size X) (Obj.size Y)
   | _, Obj.Repr (ReprObj.RAdj F H X) => 2 + Obj.size X
   | _, Obj.Repr (ReprObj.Top C) => 1
 
@@ -87,30 +87,75 @@ def HomVar.comp {C : Cat} : ∀ {X Y Z : ℕ} (f : HomVar C X Y) (g : HomVar C Y
   | _, _, _, HomVar.id _, f => f
   | _, _, _, HomVar.varComp n f, g => HomVar.varComp n (HomVar.comp f g)
 
-inductive Emb : ∀ {C : Cat}, Obj C → Obj C → Type
-  | inl : ∀ {X Y : Obj C}, Emb X (Coprod X Y)
-  | inr : ∀ {X Y : Obj C}, Emb Y (Coprod X Y)
-  | unit : ∀ {D : Cat} (F : Func D C) (H : HasLAdj F) {X : Obj C}, Emb X (App F (LAdj F H X))
-  deriving DecidableEq
+def AppOfHasRAdj : ∀ {C D : Cat} (F : Func C D) (X : Obj C), Obj D
+  | _, _, F, Obj.Coprod X Y => Coprod (AppOfHasRAdj F X) (AppOfHasRAdj F Y)
+  | _, _, _, Obj.Bot _ => Obj.Bot _
+  | _, _, F, X => App' F X
 
-inductive Proj : ∀ {C : Cat}, Obj C → Obj C → Type
-  | fst : ∀ {X Y : Obj C}, Proj (Prod X Y) X
-  | snd : ∀ {X Y : Obj C}, Proj (Prod X Y) Y
-  | counit : ∀ {D : Cat} (F : Func D C) (H : HasRAdj F) {X : Obj C},
-      Proj (App F (RAdj F H X)) X
-  deriving DecidableEq
+def AppOfHasLAdj : ∀ {C D : Cat} (F : Func C D) (X : Obj C), Obj D
+  | _, _, F, Obj.Prod X Y => Prod (AppOfHasLAdj F X) (AppOfHasLAdj F Y)
+  | _, _, _, Obj.Top _ => Obj.Top _
+  | _, _, F, X => App' F X
 
-theorem size_lt_of_emb {C : Cat} {X Y : Obj C} (f : Emb X Y) : Obj.size X < Obj.size Y := by
-  cases f <;> simp [add_comm] <;> linarith
+def AppOfHasLAdjHasRAdj : ∀ {C D : Cat} (F : Func C D) (X : Obj C), Obj D
+  | _, _, F, Obj.Coprod X Y => Coprod (AppOfHasLAdjHasRAdj F X) (AppOfHasLAdjHasRAdj F Y)
+  | _, _, F, Obj.Prod X Y => Prod (AppOfHasLAdjHasRAdj F X) (AppOfHasLAdjHasRAdj F Y)
+  | _, _, _, Obj.Bot _ => Obj.Bot _
+  | _, _, _, Obj.Top _ => Obj.Top _
+  | _, _, F, X => App' F X
 
-theorem size_lt_of_proj {C : Cat} {X Y : Obj C} (f : Proj X Y) : Obj.size Y < Obj.size X := by
-  cases f <;> simp <;> linarith
+@[simp]
+def App : ∀ {C D : Cat} (F : Func C D) (X : Obj C), Obj D
+  | _, _, F, Obj.Coprod X Y =>
+    if hR : HasRAdj F
+    then Coprod (App F X) (App F Y)
+    else App' F (Obj.Coprod X Y)
+  | _, _, F, Obj.Prod X Y =>
+    if hL : HasLAdj F
+    then Prod (App F X) (App F Y)
+    else App' F (Obj.Prod X Y)
+  | _, _, F, Obj.Bot _ =>
+    if hR : HasRAdj F
+    then Obj.Bot _
+    else App' F (Obj.Bot _)
+  | _, _, F, Obj.Top _ =>
+    if hL : HasLAdj F
+    then Obj.Top _
+    else App' F (Obj.Top _)
+  | _, _, F, X => App' F X
+
+theorem size_app : ∀ {C D : Cat} (F : Func C D) (X : Obj C), size (App F X) ≤ 1 + size X := sorry
 
 mutual
 
 /- Currently have no way of writing certain homs.
--- map F (corepr anything) ; counit : App F (Corepr _) -> App F (Radj F _ _)
+-- map F (LAdj _ _ _) ; counit : App F (LAdj G _ _) -> App F (Radj F _ _)
 -- map F (projComp (fst or snd)) ; counit : App F (X × _) -> App F (Radj F _ X) -/
+
+inductive Emb : ∀ {C : Cat}, Obj C → Obj C → Type
+  | inl : ∀ {X Y : Obj C}, Emb X (Coprod X Y)
+  | inr : ∀ {X Y : Obj C}, Emb Y (Coprod X Y)
+  | unit : ∀ {D : Cat} (F : Func D C) (H : HasLAdj F) {X : Obj C},
+      Emb X (App F (LAdj F H X))
+
+inductive ProdProj : ∀ {C : Cat}, Obj C → Obj C → Obj C → Type
+  | fst : ∀ {X Y : Obj C}, ProdProj X Y X
+  | snd : ∀ {X Y : Obj C}, ProdProj X Y Y
+
+inductive CompCounit : ∀ {C D : Cat}, Obj D → Obj C → Type
+  | counit : ∀ {C D : Cat} (F : Func D C) (H : HasRAdj F) (X : Obj C),
+      CompCounit (RAdj F H X) X
+  | mapProjComp : ∀ {C : Cat} {W X Y Z : Obj C} (f : ProdProj W X Y) (g : CompCounit Y Z),
+      CompCounit (Prod X Y) Z
+  | ladjComp : ∀ {C D : Cat} (F : Func C D) (H : HasLAdj F) {X Y : Obj C}
+
+      (g : CompCounit X Y), CompCounit (LAdj F H X) Y
+
+inductive Proj : ∀ {C : Cat}, Obj C → Obj C → Type
+  | fst : ∀ {X Y : Obj C}, Proj (Prod X Y) X
+  | snd : ∀ {X Y : Obj C}, Proj (Prod X Y) Y
+  | compCounit : ∀ {D : Cat} (F : Func D C) (H : HasRAdj F) {X : Obj C},
+      Proj (App F (RAdj F H X)) X
 
 inductive HomCorepr : {C : Cat} → CoreprObj C → Obj C → Type
   | coprod {C : Cat} {X Y Z : Obj C} (f : Hom X Z) (g : Hom Y Z) : HomCorepr (CoreprObj.Coprod X Y) Z
@@ -118,7 +163,7 @@ inductive HomCorepr : {C : Cat} → CoreprObj C → Obj C → Type
       (f : Hom X (App F Y)) : HomCorepr (CoreprObj.LAdj F H X) Y
   | botMk {C : Cat} {X : Obj C} : HomCorepr (CoreprObj.Bot C) X
 
-inductive HomRepr : ∀ {C : Cat}, Obj C → ReprObj C → Type
+inductive HomRepr : {C : Cat} → Obj C → ReprObj C → Type
   | prod {C : Cat} {X : Obj C} {Y Z : Obj C}
     (f : Hom X Y) (g : Hom X Z) : HomRepr X (ReprObj.Prod Y Z)
   | radj {C D : Cat} (F : Func C D) (H : HasRAdj F) {X : Obj C} {Y : Obj D}
@@ -130,19 +175,23 @@ inductive Hom : ∀ {C : Cat}, Obj C → Obj C → Type
   | compEmb : ∀ {C : Cat} {X : Obj C} {Y Z : Obj C} (f : Hom X Y) (g : Emb Y Z), Hom X Z
   | corepr : ∀ {C : Cat} {X : CoreprObj C} {Y : Obj C} (f : HomCorepr X Y), Hom (Corepr X) Y
   | repr : ∀ {C : Cat} {X : Obj C} {Y : ReprObj C} (f : HomRepr X Y), Hom X (Repr Y)
-  | map : ∀ {C D : Cat} {X Y : Obj C} (F : Func C D) (f : Hom X Y), Hom (App F X) (App F Y)
+  | map' : ∀ {C D : Cat} {X Y : Obj C} (F : Func C D) (f : Hom X Y), Hom (App' F X) (App' F Y)
   | var : ∀ {C : Cat} {X Y : ℕ}, HomVar C X Y → Hom (Var C X) (Var C Y)
 
-/-Provided LAdj is bigger than map, every Hom constructor make homs from homs between smaller objects.
+/- Provided LAdj is bigger than map, every Hom constructor make homs from homs between smaller objects.
 By smaller I mean that -/
 
 end
+
+theorem size_lt_of_emb {C : Cat} {X Y : Obj C} (f : Emb X Y) : Obj.size X < Obj.size Y := sorry
+
+theorem size_lt_of_proj {C : Cat} {X Y : Obj C} (f : Proj X Y) : Obj.size Y < Obj.size X := sorry
 
 namespace Hom
 
 def id : ∀ {C : Cat} {X : Obj C}, Hom X X
   | _, Obj.Var C X => Hom.var (HomVar.id _)
-  | _, Obj.App F X => Hom.map F Hom.id
+  | _, Obj.App' F X => Hom.map' F Hom.id
   | _, Obj.Repr (ReprObj.Prod X Y) => repr (HomRepr.prod (Hom.projComp Proj.fst Hom.id) (Hom.projComp Proj.snd Hom.id))
   | _, Obj.Repr (ReprObj.RAdj F H Y) => repr (HomRepr.radj F H (Hom.projComp (Proj.counit F H) Hom.id))
   | _, Obj.Repr (ReprObj.Top C) => repr HomRepr.topMk
@@ -230,12 +279,13 @@ def comp : ∀ {C : Cat} {X Y Z : Obj C}, Hom X Y → Hom Y Z → Hom X Z
     have : size Y < 1 + size X + size Y := by linarith
     f.comp h
   | _, _, _, _, var f, var g => var (HomVar.comp f g)
-  | _, _, _, _, map F f, map _ g => map _ (comp f g)
-  | _, _, _, _, map _ (projComp _ _), projComp (Proj.counit _ _) _ => sorry  --New constructor
-  | _, _, _, _, map _ (Hom.repr (HomRepr.radj _ _ f)), projComp (Proj.counit _ _) g => f.comp g
-  | _, _, _, _, map _ (Hom.corepr HomCorepr.botMk), projComp (Proj.counit _ _) _ => sorry --Things must preserve coproducts in a stronger way.
-  | _, _, _, _, map G (Hom.corepr (HomCorepr.ladj F H f)), projComp (Proj.counit _ _) g => sorry --New constructor
+  | _, _, _, _, map' F f, map' _ g => map' _ (comp f g)
+  | _, _, _, _, map' _ (projComp _ _), projComp (Proj.counit _ _) _ => sorry  --New constructor
+  | _, _, _, _, map' _ (Hom.repr (HomRepr.radj _ _ f)), projComp (Proj.counit _ _) g => f.comp g
+  | _, _, _, _, map' _ (Hom.corepr HomCorepr.botMk), projComp (Proj.counit _ _) _ => sorry --Things must preserve coproducts in a stronger way.
+  | _, _, _, _, map' G (Hom.corepr (HomCorepr.ladj F H f)), projComp (Proj.counit _ _) g => sorry --New constructor
   | _, _, _, _, _, _ => sorry
+
 
 end
 termination_by comp C X Y Z f g => (size X + size Z, size Y, 1)
