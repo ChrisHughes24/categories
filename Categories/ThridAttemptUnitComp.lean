@@ -132,12 +132,6 @@ mutual
 -- map F (LAdj _ _ _) ; counit : App F (LAdj G _ _) -> App F (Radj F _ _)
 -- map F (projComp (fst or snd)) ; counit : App F (X × _) -> App F (Radj F _ X) -/
 
-inductive Emb : ∀ {C : Cat}, Obj C → Obj C → Type
-  | inl : ∀ {X Y : Obj C}, Emb X (Coprod X Y)
-  | inr : ∀ {X Y : Obj C}, Emb Y (Coprod X Y)
-  | unit : ∀ {D : Cat} (F : Func D C) (H : HasLAdj F) {X : Obj C},
-      Emb X (App F (LAdj F H X))
-
 inductive ProdProj : ∀ {C : Cat}, Obj C → Obj C → Obj C → Type
   | fst : ∀ {X Y : Obj C}, ProdProj X Y X
   | snd : ∀ {X Y : Obj C}, ProdProj X Y Y
@@ -145,23 +139,38 @@ inductive ProdProj : ∀ {C : Cat}, Obj C → Obj C → Obj C → Type
 inductive CompCounit : ∀ {C D : Cat}, Obj D → Obj C → Type
   | counit : ∀ {C D : Cat} (F : Func D C) (H : HasRAdj F) (X : Obj C),
       CompCounit (RAdj F H X) X
+  | mapLAdjCompCounit : ∀ {C D E : Cat} (F : Func C D) (G : Func C E) (HF : HasLAdj F) (HG : HasRAdj G)
+      {X : Obj D} {Y : Obj E} (f : Hom X (App F (RAdj G HG Y))), CompCounit (LAdj F HF X) Y
   | mapProjComp : ∀ {C : Cat} {W X Y Z : Obj C} (f : ProdProj W X Y) (g : CompCounit Y Z),
       CompCounit (Prod X Y) Z
-  | ladjComp : ∀ {C D : Cat} (F : Func C D) (H : HasLAdj F) {X Y : Obj C}
-
-      (g : CompCounit X Y), CompCounit (LAdj F H X) Y
 
 inductive Proj : ∀ {C : Cat}, Obj C → Obj C → Type
-  | fst : ∀ {X Y : Obj C}, Proj (Prod X Y) X
-  | snd : ∀ {X Y : Obj C}, Proj (Prod X Y) Y
-  | compCounit : ∀ {D : Cat} (F : Func D C) (H : HasRAdj F) {X : Obj C},
-      Proj (App F (RAdj F H X)) X
+  | prodProj : ∀ {X Y Z : Obj C}, ProdProj X Y Z → Proj (Prod X Y) Z
+  | compCounit : ∀ {C D : Cat} (F : Func D C) (H : HasRAdj F) {X : Obj D} {Y : Obj C}
+      (f : CompCounit X Y), Proj (App' F X) Y
 
 inductive HomCorepr : {C : Cat} → CoreprObj C → Obj C → Type
   | coprod {C : Cat} {X Y Z : Obj C} (f : Hom X Z) (g : Hom Y Z) : HomCorepr (CoreprObj.Coprod X Y) Z
   | ladj {C D : Cat} (F : Func C D) (H : HasLAdj F) {X : Obj D} {Y : Obj C}
       (f : Hom X (App F Y)) : HomCorepr (CoreprObj.LAdj F H X) Y
   | botMk {C : Cat} {X : Obj C} : HomCorepr (CoreprObj.Bot C) X
+
+inductive CoprodEmb : ∀ {C : Cat}, Obj C → Obj C → Obj C → Type
+  | inl : ∀ {X Y : Obj C}, CoprodEmb X X Y
+  | inr : ∀ {X Y : Obj C}, CoprodEmb Y X Y
+
+inductive UnitComp : ∀ {C D : Cat}, Obj C → Obj D → Type
+  | unit : ∀ {C D : Cat} (F : Func D C) (H : HasLAdj F) (X : Obj C),
+      UnitComp X (LAdj F H X)
+  | unitCompMapRAdj : ∀ {C D E : Cat} (F : Func C D) (G : Func C E) (HF : HasRAdj F) (HG : HasLAdj G)
+      {X : Obj E} {Y : Obj D} (f : Hom (App F (LAdj G HG X)) Y), UnitComp X (RAdj F HF Y)
+  | compMapEmb : ∀ {C : Cat} {W X Y Z : Obj C} (f : UnitComp W X) (g : CoprodEmb X Y Z),
+      UnitComp W (Coprod Y Z)
+
+inductive Emb : ∀ {C : Cat}, Obj C → Obj C → Type
+  | coprodEmb : ∀ {X Y Z : Obj C}, CoprodEmb X Y Z → Emb (Coprod X Y) Z
+  | unitComp : ∀ {C D : Cat} (F : Func D C) (H : HasLAdj F) {X : Obj C} {Y : Obj D}
+      (f : UnitComp X Y), Emb X (App' F Y)
 
 inductive HomRepr : {C : Cat} → Obj C → ReprObj C → Type
   | prod {C : Cat} {X : Obj C} {Y Z : Obj C}
