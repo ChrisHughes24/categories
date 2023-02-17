@@ -43,13 +43,13 @@ end
 
 @[simp]
 def Obj.size : ∀ {C : Cat} (X : Obj C), ℕ
-  | _, Obj.Corepr (CoreprObj.Coprod X Y) => 1 + Obj.size X + Obj.size Y
-  | _, Obj.Corepr (CoreprObj.LAdj F H X) => 2 + Obj.size X
+  | _, Obj.Corepr (CoreprObj.Coprod X Y) => Obj.size X + Obj.size Y + 1
+  | _, Obj.Corepr (CoreprObj.LAdj F H X) => Obj.size X + 2
   | _, Obj.Corepr (CoreprObj.Bot C) => 1
   | _, Obj.Var C n => 1
-  | _, Obj.App F X => 1 + Obj.size X
-  | _, Obj.Repr (ReprObj.Prod X Y) => 1 + Obj.size X + Obj.size Y
-  | _, Obj.Repr (ReprObj.RAdj F H X) => 2 + Obj.size X
+  | _, Obj.App F X => Obj.size X + 1
+  | _, Obj.Repr (ReprObj.Prod X Y) => Obj.size X + Obj.size Y + 1
+  | _, Obj.Repr (ReprObj.RAdj F H X) => Obj.size X + 2
   | _, Obj.Repr (ReprObj.Top C) => 1
 
 open Obj
@@ -125,14 +125,18 @@ inductive HomRepr : ∀ {C : Cat}, Obj C → ReprObj C → Type
     (f : Hom (App F X) Y) : HomRepr X (ReprObj.RAdj F H Y)
   | topMk {C : Cat} {X : Obj C} : HomRepr X (ReprObj.Top C)
 
+inductive PreHom : ∀ {C : Cat}, Obj C → Obj C → Type
+  | projComp : ∀ {C : Cat} {X Y Z : Obj C} (f : Proj X Y) (g : PreHom Y Z), PreHom X Z
+  | compEmb : ∀ {C : Cat} {X : Obj C} {Y Z : Obj C} (f : PreHom X Y) (g : Emb Y Z), PreHom X Z
+  | corepr : ∀ {C : Cat} {X : CoreprObj C} {Y : Obj C} (f : HomCorepr X Y), PreHom (Corepr X) Y
+  | repr : ∀ {C : Cat} {X : Obj C} {Y : ReprObj C} (f : HomRepr X Y), PreHom X (Repr Y)
+  | map : ∀ {C D : Cat} {X Y : Obj C} (F : Func C D) (f : Hom X Y), PreHom (App F X) (App F Y)
+  | var : ∀ {C : Cat} (X Y : ℕ) (f : ℕ), PreHom (Var C X) (Var C Y)
+  | id : ∀ {C : Cat} {X : ℕ}, PreHom (Var C X) (Var C X)
+
 inductive Hom : ∀ {C : Cat}, Obj C → Obj C → Type
-  | projComp : ∀ {C : Cat} {X Y Z : Obj C} (f : Proj X Y) (g : Hom Y Z), Hom X Z
-  | compEmb : ∀ {C : Cat} {X : Obj C} {Y Z : Obj C} (f : Hom X Y) (g : Emb Y Z), Hom X Z
-  | corepr : ∀ {C : Cat} {X : CoreprObj C} {Y : Obj C} (f : HomCorepr X Y), Hom (Corepr X) Y
-  | repr : ∀ {C : Cat} {X : Obj C} {Y : ReprObj C} (f : HomRepr X Y), Hom X (Repr Y)
-  | map : ∀ {C D : Cat} {X Y : Obj C} (F : Func C D) (f : Hom X Y), Hom (App F X) (App F Y)
-  | var : ∀ {C : Cat} {X Y : ℕ} (f : ℕ), Hom (Var C X) (Var C Y)
-  | id : ∀ {C : Cat} {X : ℕ}, Hom (Var C X) (Var C X)
+  | preHom : ∀ {C : Cat} {X Y : Obj C} (f : PreHom X Y), Hom X Y
+  | preHomComp : ∀ {C : Cat} {X Y Z : Obj C} (f : PreHom X Y) (g : Hom Y Z), Hom X Z
 
 /-Provided LAdj is bigger than map, every Hom constructor make homs from homs between smaller objects.
 By smaller I mean that -/
@@ -141,21 +145,32 @@ end
 
 namespace Hom
 
-def id : ∀ {C : Cat} {X : Obj C}, Hom X X
-  | _, Obj.Var C X => Hom.var (HomVar.id _)
-  | _, Obj.App F X => Hom.map F Hom.id
-  | _, Obj.Repr (ReprObj.Prod X Y) => repr (HomRepr.prod (Hom.projComp Proj.fst Hom.id) (Hom.projComp Proj.snd Hom.id))
-  | _, Obj.Repr (ReprObj.RAdj F H Y) => repr (HomRepr.radj F H (Hom.projComp (Proj.counit F H) Hom.id))
-  | _, Obj.Repr (ReprObj.Top C) => repr HomRepr.topMk
-  | _, Obj.Corepr (CoreprObj.Coprod X Y) => corepr (HomCorepr.coprod (Hom.compEmb Hom.id Emb.inl) (Hom.compEmb Hom.id Emb.inr))
-  | _, Obj.Corepr (CoreprObj.LAdj F H X) => corepr (HomCorepr.ladj F H (Hom.compEmb Hom.id (Emb.unit F H)))
-  | _, Obj.Corepr (CoreprObj.Bot C) => corepr HomCorepr.botMk
+def id' : ∀ {C : Cat} {X : Obj C}, PreHom X X
+  | _, Obj.Var C X => PreHom.id
+  | _, Obj.App F X => PreHom.map F (preHom Hom.id')
+  | _, Obj.Repr (ReprObj.Prod X Y) => PreHom.repr
+      (HomRepr.prod
+        (preHom (PreHom.projComp Proj.fst Hom.id'))
+        (preHom (PreHom.projComp Proj.snd Hom.id')))
+  | _, Obj.Repr (ReprObj.RAdj F H Y) => PreHom.repr
+      (HomRepr.radj F H (preHom (PreHom.projComp (Proj.counit F H) Hom.id')))
+  | _, Obj.Repr (ReprObj.Top C) => PreHom.repr HomRepr.topMk
+  | _, Obj.Corepr (CoreprObj.Coprod X Y) => PreHom.corepr
+      (HomCorepr.coprod
+        (preHom (PreHom.compEmb Hom.id' Emb.inl))
+        (preHom (PreHom.compEmb Hom.id' Emb.inr)))
+  | _, Obj.Corepr (CoreprObj.LAdj F H X) => PreHom.corepr
+      (HomCorepr.ladj F H (preHom (PreHom.compEmb Hom.id' (Emb.unit F H))))
+  | _, Obj.Corepr (CoreprObj.Bot C) => PreHom.corepr HomCorepr.botMk
+
+def id {C : Cat} {X : Obj C} : Hom X X :=
+  Hom.preHom Hom.id'
 
 def ofEmb {C : Cat} {X Y : Obj C} (f : Emb X Y) : Hom X Y :=
-  compEmb Hom.id f
+  preHom (PreHom.compEmb Hom.id' f)
 
 def ofProj {C : Cat} {X Y : Obj C} (f : Proj X Y) : Hom X Y :=
-  projComp f Hom.id
+  preHom (PreHom.projComp f Hom.id')
 
 def inl {C : Cat} {X Y : Obj C} : Hom X (Coprod X Y) :=
   ofEmb Emb.inl
@@ -177,41 +192,46 @@ def counit {C : Cat} {D : Cat} (F : Func C D) (H : HasRAdj F) {X : Obj D} : Hom 
 
 @[match_pattern]
 def botMk {C : Cat} {X : Obj C} : Hom (Bot C) X :=
-  corepr HomCorepr.botMk
+  preHom (PreHom.corepr HomCorepr.botMk)
 
 @[match_pattern]
 def topMk {C : Cat} {X : Obj C} : Hom X (Top C) :=
-  repr HomRepr.topMk
+  preHom (PreHom.repr HomRepr.topMk)
 
 @[match_pattern]
 def coprod {C : Cat} {X Y Z : Obj C} (f : Hom X Z) (g : Hom Y Z) : Hom (Coprod X Y) Z :=
-  corepr (HomCorepr.coprod f g)
+  preHom (PreHom.corepr (HomCorepr.coprod f g))
 
 @[match_pattern]
 def prod {C : Cat} {X Y Z : Obj C} (f : Hom X Y) (g : Hom X Z) : Hom X (Prod Y Z) :=
-  repr (HomRepr.prod f g)
+  preHom (PreHom.repr (HomRepr.prod f g))
 
 @[match_pattern]
 def radj {C : Cat} {D : Cat} (F : Func C D) (H : HasRAdj F) {X : Obj C} {Y : Obj D} (f : Hom (App F X) Y) : Hom X (RAdj F H Y) :=
-  repr (HomRepr.radj F H f)
+  preHom (PreHom.repr (HomRepr.radj F H f))
 
 @[match_pattern]
 def ladj {C : Cat} {D : Cat} (F : Func C D) (H : HasLAdj F) {X : Obj C} {Y : Obj D} (f : Hom Y (App F X)) : Hom (LAdj F H Y) X :=
-  corepr (HomCorepr.ladj F H f)
+  preHom (PreHom.corepr (HomCorepr.ladj F H f))
 
+/-
+Use App'
+Shit we can't compose just use the comp constructor.
+Make composition associative by definition.
+-/
 mutual
 
 def coreprComp : ∀ {C : Cat} {X : CoreprObj C} {Y Z : Obj C}, HomCorepr X Y → Hom Y Z → HomCorepr X Z
-  | _, _, _, _, HomCorepr.coprod f g, h => HomCorepr.coprod (comp f h) (comp g h)
-  | _, _, _, _, HomCorepr.ladj F H f, g => HomCorepr.ladj _ _ (comp f (Hom.map F g))
+  | _, _, _, _, HomCorepr.coprod f g, h => HomCorepr.coprod (compCE f h) (compCE g h)
+  | _, _, _, _, HomCorepr.ladj F H f, g => HomCorepr.ladj _ _ (compCE f (Hom.map F g))
   | _, _, _, _, HomCorepr.botMk, _ => HomCorepr.botMk
 
 def compRepr : ∀ {C : Cat} {X Y : Obj C} {Z : ReprObj C}, Hom X Y → HomRepr Y Z → HomRepr X Z
-  | _, _, _, _, f, HomRepr.prod g h => HomRepr.prod (comp f g) (comp f h)
-  | _, _, _, _, f, HomRepr.radj F H g => HomRepr.radj _ _ (comp (Hom.map F f) g)
+  | _, _, _, _, f, HomRepr.prod g h => HomRepr.prod (compCE f g) (compCE f h)
+  | _, _, _, _, f, HomRepr.radj F H g => HomRepr.radj _ _ (compCE (Hom.map F f) g)
   | _, _, _, _, _, HomRepr.topMk => HomRepr.topMk
 
-def comp : ∀ {C : Cat} {X Y Z : Obj C}, Hom X Y → Hom Y Z → Hom X Z
+def compCE : ∀ {C : Cat} {X Y Z : Obj C}, PreHom X Y → PreHom Y Z → PreHom X Z
   | _, _, _, _, Hom.corepr f, g => corepr (coreprComp f g)
   | _, _, _, _, f, Hom.repr g => repr (compRepr f g)
   | _, W, Y, Z, Hom.projComp (Y := X) f g, h =>
@@ -230,13 +250,32 @@ def comp : ∀ {C : Cat} {X Y Z : Obj C}, Hom X Y → Hom Y Z → Hom X Z
   | _, W, Obj.Coprod X Y, Z, compEmb f Emb.inr, coprod g h =>
     have : size Y < 1 + size X + size Y := by linarith
     f.comp h
-  | _, _, _, _, var f, var g => var (HomVar.comp f g)
-  | _, _, _, _, map F f, map _ g => map _ (comp f g)
+  | _, _, _, _, var X Y f, var _ Z g => comp (var X Y f) (var Y Z g)
+  | _, _, _, _, map F f, map _ g => map _ (compCE f g)
   | _, _, _, _, map _ (projComp _ _), projComp (Proj.counit _ _) _ => sorry  --New constructor
   | _, _, _, _, map _ (Hom.repr (HomRepr.radj _ _ f)), projComp (Proj.counit _ _) g => f.comp g
-  | _, _, _, _, map _ (Hom.corepr HomCorepr.botMk), projComp (Proj.counit _ _) _ => sorry --Things must preserve coproducts in a stronger way.
+  | _, _, _, _, map _ (Hom.corepr HomCorepr.botMk), projComp (Proj.counit _ _) _ => _ --Things must preserve coproducts in a stronger way.
   | _, _, _, _, map G (Hom.corepr (HomCorepr.ladj F H f)), projComp (Proj.counit _ _) g => sorry --New constructor
   | _, _, _, _, _, _ => sorry
+
+
+-- def cutElim : ∀ {C : Cat} {X Y : Obj C}, Hom X Y → Hom X Y
+--   | _, Obj.Bot _, _, _ => botMk
+--   | _, _, _, coprod f g => coprod (cutElim f) (cutElim g)
+--   | _, Obj.Coprod X Y, _, f => coprod (cutElim (inl.comp f)) (cutElim (inr.comp f))
+--   | _, _, _, ladj _ _ f => ladj _ _ (cutElim f)
+--   | _, Obj.LAdj F H X, _, f => ladj F H (cutElim ((unit _ _).comp (map F f)))
+--   | _, _, Obj.Top _, _ => topMk
+--   | _, _, _, prod f g => prod (cutElim f) (cutElim g)
+--   | _, _, Obj.Prod X Y, f => prod (cutElim (f.comp fst)) (cutElim (f.comp snd))
+--   | _, _, _, radj _ _ f => radj _ _ (cutElim f)
+--   | _, _, Obj.RAdj F H Y, f => radj F H (cutElim ((map F f).comp (counit _ _)))
+--   | _, _, _, map F f => map F (cutElim f)
+--   | _, _, _, projComp f g => projComp f (cutElim g)
+--   | _, _, _, compEmb f g => compEmb (cutElim f) g
+--   | _, _, _, var f => var f
+--   | _, _, _, Hom.id' => Hom.id'
+--   | _, _, _, comp f g => sorry
 
 end
 termination_by comp C X Y Z f g => (size X + size Z, size Y, 1)
