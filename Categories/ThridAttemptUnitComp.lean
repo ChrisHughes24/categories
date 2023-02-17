@@ -178,8 +178,9 @@ inductive CoprodEmb : ∀ {C : Cat}, PreObj C → PreObj C → PreObj C → Type
 inductive UnitComp : ∀ {C D : Cat} (F : Func D C) (H : HasLAdj F), PreObj C → PreObj D → Type
   | unit : ∀ {C D : Cat} (F : Func D C) (H : HasLAdj F) (X : PreObj C),
       UnitComp F H X (LAdj F H X)
-  | unitCompMapRAdj : ∀ {C D E : Cat} (F : Func C D) (G : Func C E) (HF : HasRAdj F) (HG : HasLAdj G)
-      {X : PreObj E} {Y : PreObj D} (f : PreHom (App F (LAdj G HG X)) Y), UnitComp G HG X (RAdj F HF Y)
+  --Looks wrong
+  | unitCompMapRAdj : ∀ {C D E : Cat} (F : Func C D) (G : Func C E) (HF : HasLAdj F) (HG : HasRAdj G)
+      {X : PreObj D} {Y : PreObj E} (f : PreHom (App G (LAdj F HF X)) Y), UnitComp F HF X (RAdj G HG Y)
   | compMapEmb : ∀ {C : Cat} {W X Y Z : PreObj D} (f : UnitComp F H W X) (g : CoprodEmb X Y Z),
       UnitComp F H W (Coprod Y Z)
 
@@ -336,7 +337,7 @@ def compCorepr : ∀ {C : Cat} {X : PreObj C} {Y : CoreprObj C} {Z : PreObj C},
   | _, _, _, _, compEmb f Emb.inr, HomCorepr.coprod g h => comp f h
   | _, _, _, _, PreHom.corepr f, g => corepr (coreprComp f (corepr g))
   | _, _, _, _, projComp f g, h => projComp f (compCorepr g h)
-
+--Think about cancellability
 def comp : ∀ {C : Cat} {X Y Z : PreObj C} ,
     PreHom (X : PreObj C) Y → PreHom (Y : PreObj C) Z → PreHom (X : PreObj C) Z
   | _, _, _, _, PreHom.corepr f, g => corepr (coreprComp f g)
@@ -353,6 +354,9 @@ def comp : ∀ {C : Cat} {X Y Z : PreObj C} ,
     compEmb (f.comp g) h
   | _, _, _, _, var f, var g => var (HomVar.comp f g)
   | _, _, _, _, map' F f, map' _ g => map' _ (comp f g)
+  | _, _, _, _, compEmb f (Emb.unitComp F H (UnitComp.unitCompMapRAdj _ G _ _ g)),
+    projComp (Proj.compCounit _ HG (CompCounit.counit _ _ _)) k =>
+    comp (compEmb f (Emb.unit _ _)) _
   -- | _, _, _, _, map' _ (projComp _ _), projComp (Proj.counit' _ _) _ =>
   --       sorry
   -- | _, App' _ X, _, _, map' F (PreHom.repr (HomRepr.radj _ _ f)), projComp (Proj.counit' _ _) g =>
@@ -361,7 +365,7 @@ def comp : ∀ {C : Cat} {X Y Z : PreObj C} ,
   -- | _, _, _, _, map' _ (PreHom.corepr HomCorepr.botMk), projComp (Proj.counit' _ _) _ => sorry
   --Things must preserve coproducts in a stronger way.
   --| _, _, _, _, map' G (PreHom.corepr (HomCorepr.ladj F H f)), projComp (Proj.counit' _ _) g => sorry --New constructor
-  --| _, _, _, _, _, _ => sorry
+  | _, _, _, _, _, _ => sorry
 
 end
 termination_by comp C X Y Z f g => (size X + size Z, size Y, 1)
