@@ -184,18 +184,19 @@ inductive CoprodEmb : ∀ {C : Cat}, PreObj C → PreObj C → PreObj C → Type
   | inl : ∀ {X Y : PreObj C}, CoprodEmb X X Y
   | inr : ∀ {X Y : PreObj C}, CoprodEmb Y X Y
 
-inductive UnitComp : ∀ {C D : Cat}, PreObj C → PreObj D → Type
+/-- `UnitComp F H X Y` describes a morphism from `X` to `App F Y` -/
+inductive UnitComp : ∀ {C D : Cat} (F : Func D C) (H : HasLAdj F), PreObj C → PreObj D → Type
   | unit : ∀ {C D : Cat} (F : Func D C) (H : HasLAdj F) (X : PreObj C),
-      UnitComp X (LAdj F H X)
+      UnitComp F H X (LAdj F H X)
   | unitCompMapRAdj : ∀ {C D E : Cat} (F : Func C D) (G : Func C E) (HF : HasRAdj F) (HG : HasLAdj G)
-      {X : PreObj E} {Y : PreObj D} (f : PreHom (App F (LAdj G HG X)) Y), UnitComp X (RAdj F HF Y)
-  | compMapEmb : ∀ {C : Cat} {W X Y Z : PreObj C} (f : UnitComp W X) (g : CoprodEmb X Y Z),
-      UnitComp W (Coprod Y Z)
+      {X : PreObj E} {Y : PreObj D} (f : PreHom (App F (LAdj G HG X)) Y), UnitComp G HG X (RAdj F HF Y)
+  | compMapEmb : ∀ {C : Cat} {W X Y Z : PreObj D} (f : UnitComp F H W X) (g : CoprodEmb X Y Z),
+      UnitComp F H W (Coprod Y Z)
 
 inductive Emb : ∀ {C : Cat}, PreObj C → PreObj C → Type
   | coprodEmb : ∀ {X Y Z : PreObj C}, CoprodEmb X Y Z → Emb X (Coprod Y Z)
   | unitComp : ∀ {C D : Cat} (F : Func D C) (H : HasLAdj F) {X : PreObj C} {Y : PreObj D}
-      (f : UnitComp X Y), Emb X (App' F Y)
+      (f : UnitComp F H X Y), Emb X (App' F Y)
 
 inductive HomRepr : {C : Cat} → PreObj C → ReprObj C → Type
   | prod {C : Cat} {X : PreObj C} {Y Z : PreObj C}
@@ -226,9 +227,13 @@ def Proj.snd {C : Cat} {X Y : PreObj C} : Proj (Prod X Y) Y :=
   prodProj ProdProj.snd
 
 @[match_pattern]
-def Proj.counit {C : Cat} {D : Cat} (F : Func D C) (H : HasRAdj F) {X : PreObj C} :
+def Proj.counit' {C : Cat} {D : Cat} (F : Func D C) (H : HasRAdj F) {X : PreObj C} :
     Proj (App' F (RAdj F H X)) X :=
   compCounit F H (CompCounit.counit F H X)
+
+def Proj.counit {C : Cat} {D : Cat} (F : Func D C) (H : HasRAdj F) {X : PreObj C} :
+    Proj (App F (RAdj F H X)) X :=
+  by simp only [App]; exact compCounit F H (CompCounit.counit F H X)
 
 @[match_pattern]
 def Emb.inl {C : Cat} {X Y : PreObj C} : Emb X (Coprod X Y) :=
@@ -239,9 +244,13 @@ def Emb.inr {C : Cat} {X Y : PreObj C} : Emb Y (Coprod X Y) :=
   coprodEmb CoprodEmb.inr
 
 @[match_pattern]
-def Emb.unit {C : Cat} {D : Cat} (F : Func D C) (H : HasLAdj F) {X : PreObj C} :
+def Emb.unit' {C : Cat} {D : Cat} (F : Func D C) (H : HasLAdj F) {X : PreObj C} :
     Emb X (App' F (LAdj F H X)) :=
   unitComp F H (UnitComp.unit F H X)
+
+def Emb.unit {C : Cat} {D : Cat} (F : Func D C) (H : HasLAdj F) {X : PreObj C} :
+    Emb X (App F (LAdj F H X)) :=
+  by simp only [App]; exact unitComp F H (UnitComp.unit F H X)
 
 theorem size_lt_of_emb {C : Cat} {X Y : PreObj C} (f : Emb X Y) : PreObj.size X < PreObj.size Y := sorry
 
@@ -274,7 +283,7 @@ def inl {C : Cat} {X Y : PreObj C} : PreHom X (Coprod X Y) :=
 def inr {C : Cat} {X Y : PreObj C} : PreHom Y (Coprod X Y) :=
   ofEmb Emb.inr
 
-def unit {C : Cat} {D : Cat} (F : Func C D) (H : HasLAdj F) {X : Obj D} : PreHom X (App' F (LAdj F H X)) :=
+def unit {C : Cat} {D : Cat} (F : Func C D) (H : HasLAdj F) {X : Obj D} : PreHom X (App F (LAdj F H X)) :=
   ofEmb (Emb.unit F H)
 
 def fst {C : Cat} {X Y : PreObj C} : PreHom (Prod X Y) X :=
@@ -283,7 +292,7 @@ def fst {C : Cat} {X Y : PreObj C} : PreHom (Prod X Y) X :=
 def snd {C : Cat} {X Y : PreObj C} : PreHom (Prod X Y) Y :=
   ofProj Proj.snd
 
-def counit {C : Cat} {D : Cat} (F : Func C D) (H : HasRAdj F) {X : PreObj D} : PreHom (App' F (RAdj F H X)) X :=
+def counit {C : Cat} {D : Cat} (F : Func C D) (H : HasRAdj F) {X : PreObj D} : PreHom (App F (RAdj F H X)) X :=
   ofProj (Proj.counit F H)
 
 @[match_pattern]
@@ -349,8 +358,8 @@ def comp : ∀ {C : Cat} {X Y Z : PreObj C} ,
     f.comp h
   | _, _, _, _, var f, var g => var (HomVar.comp f g)
   | _, _, _, _, map' F f, map' _ g => map' _ (comp f g)
-  | _, _, _, _, map' _ (projComp _ _), projComp (Proj.counit _ _) _ => sorry  --New constructor
-  | _, _, _, _, map' _ (PreHom.repr (HomRepr.radj _ _ f)), projComp (Proj.counit _ _) g => f.comp g
+  | _, _, _, _, map' _ (projComp _ _), projComp (Proj.counit' _ _) _ => sorry  --New constructor
+  | _, _, _, _, map' _ (PreHom.repr (HomRepr.radj _ _ f)), projComp (Proj.counit' _ _) g => f.comp g
   | _, _, _, _, map' _ (Hom.corepr HomCorepr.botMk), projComp (Proj.counit _ _) _ => sorry --Things must preserve coproducts in a stronger way.
   | _, _, _, _, map' G (Hom.corepr (HomCorepr.ladj F H f)), projComp (Proj.counit _ _) g => sorry --New constructor
   | _, _, _, _, _, _ => sorry
