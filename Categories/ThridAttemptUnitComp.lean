@@ -108,7 +108,7 @@ inductive PreObj.Valid : ∀ {C : Cat} (X : PreObj C), Prop
 
 def Obj (C : Cat) := { X : PreObj C // X.Valid }
 
-@[coe] def toPreObj {C : Cat} (X : Obj C) : PreObj C := X.val
+@[coe, match_pattern] def toPreObj {C : Cat} (X : Obj C) : PreObj C := X.val
 
 instance (C : Cat) : Coe (Obj C) (PreObj C) := ⟨ toPreObj ⟩
 
@@ -217,25 +217,31 @@ By smaller I mean that -/
 
 end
 
+@[match_pattern]
 def Proj.fst {C : Cat} {X Y : PreObj C} : Proj (Prod X Y) X :=
   prodProj ProdProj.fst
 
+@[match_pattern]
 def Proj.snd {C : Cat} {X Y : PreObj C} : Proj (Prod X Y) Y :=
   prodProj ProdProj.snd
 
+@[match_pattern]
 def Proj.counit {C : Cat} {D : Cat} (F : Func D C) (H : HasRAdj F) {X : PreObj C} :
-    Proj (App F (RAdj F H X)) X :=
-  by simp only [App]; exact compCounit F H (CompCounit.counit F H X)
+    Proj (App' F (RAdj F H X)) X :=
+  compCounit F H (CompCounit.counit F H X)
 
+@[match_pattern]
 def Emb.inl {C : Cat} {X Y : PreObj C} : Emb X (Coprod X Y) :=
   coprodEmb CoprodEmb.inl
 
+@[match_pattern]
 def Emb.inr {C : Cat} {X Y : PreObj C} : Emb Y (Coprod X Y) :=
   coprodEmb CoprodEmb.inr
 
+@[match_pattern]
 def Emb.unit {C : Cat} {D : Cat} (F : Func D C) (H : HasLAdj F) {X : PreObj C} :
-    Emb X (App F (LAdj F H X)) :=
-  by simp only [App]; exact unitComp F H (UnitComp.unit F H X)
+    Emb X (App' F (LAdj F H X)) :=
+  unitComp F H (UnitComp.unit F H X)
 
 theorem size_lt_of_emb {C : Cat} {X Y : PreObj C} (f : Emb X Y) : PreObj.size X < PreObj.size Y := sorry
 
@@ -268,7 +274,7 @@ def inl {C : Cat} {X Y : PreObj C} : PreHom X (Coprod X Y) :=
 def inr {C : Cat} {X Y : PreObj C} : PreHom Y (Coprod X Y) :=
   ofEmb Emb.inr
 
-def unit {C : Cat} {D : Cat} (F : Func C D) (H : HasLAdj F) {X : Obj D} : PreHom X (App F (LAdj F H X)) :=
+def unit {C : Cat} {D : Cat} (F : Func C D) (H : HasLAdj F) {X : Obj D} : PreHom X (App' F (LAdj F H X)) :=
   ofEmb (Emb.unit F H)
 
 def fst {C : Cat} {X Y : PreObj C} : PreHom (Prod X Y) X :=
@@ -277,7 +283,7 @@ def fst {C : Cat} {X Y : PreObj C} : PreHom (Prod X Y) X :=
 def snd {C : Cat} {X Y : PreObj C} : PreHom (Prod X Y) Y :=
   ofProj Proj.snd
 
-def counit {C : Cat} {D : Cat} (F : Func C D) (H : HasRAdj F) {X : PreObj D} : PreHom (App F (RAdj F H X)) X :=
+def counit {C : Cat} {D : Cat} (F : Func C D) (H : HasRAdj F) {X : PreObj D} : PreHom (App' F (RAdj F H X)) X :=
   ofProj (Proj.counit F H)
 
 @[match_pattern]
@@ -305,6 +311,54 @@ def radj {C : Cat} {D : Cat} (F : Func C D) (H : HasRAdj F) {X : PreObj C} {Y : 
 def ladj {C : Cat} {D : Cat} (F : Func C D) (H : HasLAdj F) {X : PreObj C} {Y : PreObj D}
     (f : PreHom Y (App F X)) : PreHom (LAdj F H Y) X :=
   corepr (HomCorepr.ladj F H f)
+
+mutual
+
+def map : ∀ {C D : Cat} (F : Func C D) {X Y : PreObj C}, PreHom X Y → PreHom (App F X) (App F Y)
+  | _, _, _, _, _, _ => sorry
+
+def coreprComp : ∀ {C : Cat} {X : CoreprObj C} {Y Z : PreObj C}, HomCorepr X Y → PreHom (Y : PreObj C) Z → HomCorepr X Z
+  | _, _, _, _, HomCorepr.coprod f g, h => HomCorepr.coprod (comp f h) (comp g h)
+  | _, _, _, _, HomCorepr.ladj F H f, g => HomCorepr.ladj _ _ (comp f (PreHom.map F g))
+  | _, _, _, _, HomCorepr.botMk, _ => HomCorepr.botMk
+
+def compRepr : ∀ {C : Cat} {X Y : PreObj C} {Z : ReprObj C}, PreHom (X : PreObj C) Y → HomRepr Y Z → HomRepr X Z
+  | _, _, _, _, f, HomRepr.prod g h => HomRepr.prod (comp f g) (comp f h)
+  | _, _, _, _, f, HomRepr.radj F H g => HomRepr.radj _ _ (comp (map F f) g)
+  | _, _, _, _, _, HomRepr.topMk => HomRepr.topMk
+
+def comp : ∀ {C : Cat} {X Y Z : PreObj C} ,
+    PreHom (X : PreObj C) Y → PreHom (Y : PreObj C) Z → PreHom (X : PreObj C) Z
+  | _, _, _, _, PreHom.corepr f, g => corepr (coreprComp f g)
+  | _, _, _, _, f, PreHom.repr g => repr (compRepr f g)
+  | _, W, Y, Z, PreHom.projComp (Y := X) f g, h =>
+    have : size X + size Z < size W + size Z :=
+      by linarith [size_lt_of_proj f]
+    PreHom.projComp f (comp g h)
+  | _, W, X, Z, f, PreHom.compEmb (Y := Y) g h =>
+    have : size W + size Y < size W + size Z :=
+      by linarith [size_lt_of_emb h]
+    compEmb (f.comp g) h
+  | _, _, _, _, prod f g, projComp Proj.fst h => comp f h
+  | _, W, PreObj.Prod X Y, Z, prod f g, projComp Proj.snd h =>
+    have : size Y < 1 + size X + size Y := by linarith
+    comp g h
+  | _, _, _, _, compEmb f Emb.inl, coprod g h => f.comp g
+  | _, W, PreObj.Coprod X Y, Z, compEmb f Emb.inr, coprod g h =>
+    have : size Y < 1 + size X + size Y := by linarith
+    f.comp h
+  | _, _, _, _, var f, var g => var (HomVar.comp f g)
+  | _, _, _, _, map' F f, map' _ g => map' _ (comp f g)
+  | _, _, _, _, map' _ (projComp _ _), projComp (Proj.counit _ _) _ => sorry  --New constructor
+  | _, _, _, _, map' _ (PreHom.repr (HomRepr.radj _ _ f)), projComp (Proj.counit _ _) g => f.comp g
+  | _, _, _, _, map' _ (Hom.corepr HomCorepr.botMk), projComp (Proj.counit _ _) _ => sorry --Things must preserve coproducts in a stronger way.
+  | _, _, _, _, map' G (Hom.corepr (HomCorepr.ladj F H f)), projComp (Proj.counit _ _) g => sorry --New constructor
+  | _, _, _, _, _, _ => sorry
+
+end
+termination_by comp C X Y Z f g => (size X + size Z, size Y, 1)
+               coreprComp C X Y Z f g => (size (Corepr X) + size Z, size Y, 0)
+               compRepr C X Y Z f g => (size X + size (Repr Z), size Y, 0)
 
 end PreHom
 
@@ -349,50 +403,6 @@ def ladj {C : Cat} {D : Cat} (F : Func C D) (H : HasLAdj F) {X : Obj C} {Y : Obj
 end Hom
 
 
-mutual
-
-def coreprComp : ∀ {C : Cat} {X : CoreprObj C} {Y Z : Obj C}, HomCorepr X Y → Hom Y Z → HomCorepr X Z
-  | _, _, _, _, HomCorepr.coprod f g, h => HomCorepr.coprod (comp f h) (comp g h)
-  | _, _, _, _, HomCorepr.ladj F H f, g => HomCorepr.ladj _ _ (comp f (Hom.map F g))
-  | _, _, _, _, HomCorepr.botMk, _ => HomCorepr.botMk
-
-def compRepr : ∀ {C : Cat} {X Y : Obj C} {Z : ReprObj C}, Hom X Y → HomRepr Y Z → HomRepr X Z
-  | _, _, _, _, f, HomRepr.prod g h => HomRepr.prod (comp f g) (comp f h)
-  | _, _, _, _, f, HomRepr.radj F H g => HomRepr.radj _ _ (comp (Hom.map F f) g)
-  | _, _, _, _, _, HomRepr.topMk => HomRepr.topMk
-
-def comp : ∀ {C : Cat} {X Y Z : Obj C}, Hom X Y → Hom Y Z → Hom X Z
-  | _, _, _, _, Hom.corepr f, g => corepr (coreprComp f g)
-  | _, _, _, _, f, Hom.repr g => repr (compRepr f g)
-  | _, W, Y, Z, Hom.projComp (Y := X) f g, h =>
-    have : size X + size Z < size W + size Z :=
-      by linarith [size_lt_of_proj f]
-    Hom.projComp f (comp g h)
-  | _, W, X, Z, f, Hom.compEmb (Y := Y) g h =>
-    have : size W + size Y < size W + size Z :=
-      by linarith [size_lt_of_emb h]
-    compEmb (f.comp g) h
-  | _, _, _, _, prod f g, projComp Proj.fst h => comp f h
-  | _, W, Obj.Prod X Y, Z, prod f g, projComp Proj.snd h =>
-    have : size Y < 1 + size X + size Y := by linarith
-    comp g h
-  | _, _, _, _, compEmb f Emb.inl, coprod g h => f.comp g
-  | _, W, Obj.Coprod X Y, Z, compEmb f Emb.inr, coprod g h =>
-    have : size Y < 1 + size X + size Y := by linarith
-    f.comp h
-  | _, _, _, _, var f, var g => var (HomVar.comp f g)
-  | _, _, _, _, map' F f, map' _ g => map' _ (comp f g)
-  | _, _, _, _, map' _ (projComp _ _), projComp (Proj.counit _ _) _ => sorry  --New constructor
-  | _, _, _, _, map' _ (Hom.repr (HomRepr.radj _ _ f)), projComp (Proj.counit _ _) g => f.comp g
-  | _, _, _, _, map' _ (Hom.corepr HomCorepr.botMk), projComp (Proj.counit _ _) _ => sorry --Things must preserve coproducts in a stronger way.
-  | _, _, _, _, map' G (Hom.corepr (HomCorepr.ladj F H f)), projComp (Proj.counit _ _) g => sorry --New constructor
-  | _, _, _, _, _, _ => sorry
-
-
-end
-termination_by comp C X Y Z f g => (size X + size Z, size Y, 1)
-               coreprComp C X Y Z f g => (size (Corepr X) + size Z, size Y, 0)
-               compRepr C X Y Z f g => (size X + size (Repr Z), size Y, 0)
 
 def LAdjSymm {C D : Cat} (F : Func C D) (H : HasLAdj F) {X : Obj D} {Y : Obj C}
     (f : Hom (Obj.LAdj F H X) Y) : Hom X (App F Y) :=
