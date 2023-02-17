@@ -96,47 +96,37 @@ def PreObj.size : ∀ {C : Cat} (X : PreObj C), ℕ
   | _, Repr (ReprObj.RAdj F H X) => 2 + size X
   | _, Repr (ReprObj.Top C) => 1
 
-inductive PreObj.Valid : ∀ {C : Cat} (X : PreObj C), Prop
-  | Var : ∀ {C : Cat} (n : ℕ), Valid (Var C n)
-  | App : ∀ {C D : Cat} (F : Func C D) (X : PreObj C), Valid X → Valid (App F X)
-  | Bot : ∀ {C : Cat}, Valid (Bot C)
-  | Top : ∀ {C : Cat}, Valid (Top C)
-  | Coprod : ∀ {C : Cat} (X Y : PreObj C), Valid X → Valid Y → Valid (Coprod X Y)
-  | Prod : ∀ {C : Cat} (X Y : PreObj C), Valid X → Valid Y → Valid (Prod X Y)
-  | LAdj : ∀ {C D : Cat} (F : Func C D) (H : HasLAdj F) (X : PreObj D), Valid X → Valid (LAdj F H X)
-  | RAdj : ∀ {C D : Cat} (F : Func C D) (H : HasRAdj F) (X : PreObj D), Valid X → Valid (RAdj F H X)
+def CoreprObj.Valid : ∀ {C : Cat} (X : CoreprObj C), Prop := sorry
 
-def Obj (C : Cat) := { X : PreObj C // X.Valid }
+def ReprObj.Valid : ∀ {C : Cat} (X : ReprObj C), Prop := sorry
 
-@[coe, match_pattern] def toPreObj {C : Cat} (X : Obj C) : PreObj C := X.val
+def PreObj.Valid : ∀ {C : Cat} (X : PreObj C), Prop := sorry
 
-instance (C : Cat) : Coe (Obj C) (PreObj C) := ⟨ toPreObj ⟩
+-- namespace Obj
 
-namespace Obj
+-- def size {C : Cat} (X : Obj C) : ℕ := PreObj.size X.val
 
-def size {C : Cat} (X : Obj C) : ℕ := PreObj.size X.val
+-- def Var {C : Cat} (n : ℕ) : Obj C := ⟨ PreObj.Var C n, Valid.Var n ⟩
 
-def Var {C : Cat} (n : ℕ) : Obj C := ⟨ PreObj.Var C n, Valid.Var n ⟩
+-- def App {C D : Cat} (F : Func C D) (X : Obj C) : Obj D := ⟨ PreObj.App F X.val, Valid.App F X.val X.2 ⟩
 
-def App {C D : Cat} (F : Func C D) (X : Obj C) : Obj D := ⟨ PreObj.App F X.val, Valid.App F X.val X.2 ⟩
+-- def Coprod {C : Cat} (X Y : Obj C) : Obj C := ⟨ PreObj.Coprod X.val Y.val, Valid.Coprod X.val Y.val X.2 Y.2 ⟩
 
-def Coprod {C : Cat} (X Y : Obj C) : Obj C := ⟨ PreObj.Coprod X.val Y.val, Valid.Coprod X.val Y.val X.2 Y.2 ⟩
+-- def Prod {C : Cat} (X Y : Obj C) : Obj C := ⟨ PreObj.Prod X.val Y.val, Valid.Prod X.val Y.val X.2 Y.2 ⟩
 
-def Prod {C : Cat} (X Y : Obj C) : Obj C := ⟨ PreObj.Prod X.val Y.val, Valid.Prod X.val Y.val X.2 Y.2 ⟩
+-- def Bot (C : Cat) : Obj C := ⟨ PreObj.Bot C, Valid.Bot ⟩
 
-def Bot (C : Cat) : Obj C := ⟨ PreObj.Bot C, Valid.Bot ⟩
+-- def Top (C : Cat) : Obj C := ⟨ PreObj.Top C, Valid.Top ⟩
 
-def Top (C : Cat) : Obj C := ⟨ PreObj.Top C, Valid.Top ⟩
+-- def LAdj {C D : Cat} (F : Func C D) (H : HasLAdj F) (X : Obj D) : Obj C :=
+--   ⟨ PreObj.LAdj F H X.val, Valid.LAdj F H X.val X.2 ⟩
 
-def LAdj {C D : Cat} (F : Func C D) (H : HasLAdj F) (X : Obj D) : Obj C :=
-  ⟨ PreObj.LAdj F H X.val, Valid.LAdj F H X.val X.2 ⟩
+-- def RAdj {C D : Cat} (F : Func C D) (H : HasRAdj F) (X : Obj D) : Obj C :=
+--   ⟨ PreObj.RAdj F H X.val, Valid.RAdj F H X.val X.2 ⟩
 
-def RAdj {C D : Cat} (F : Func C D) (H : HasRAdj F) (X : Obj D) : Obj C :=
-  ⟨ PreObj.RAdj F H X.val, Valid.RAdj F H X.val X.2 ⟩
+-- theorem size_app : ∀ {C D : Cat} (F : Func C D) (X : Obj C), size (App F X) ≤ 1 + size X := sorry
 
-theorem size_app : ∀ {C D : Cat} (F : Func C D) (X : Obj C), size (App F X) ≤ 1 + size X := sorry
-
-end Obj
+-- end Obj
 
 inductive HomVar (C : Cat) : (X Y : ℕ) → Type
   | id : ∀ (X : ℕ), HomVar C X X
@@ -256,9 +246,6 @@ theorem size_lt_of_emb {C : Cat} {X Y : PreObj C} (f : Emb X Y) : PreObj.size X 
 
 theorem size_lt_of_proj {C : Cat} {X Y : PreObj C} (f : Proj X Y) : PreObj.size Y < PreObj.size X := sorry
 
-@[reducible] def Hom {C : Cat} (X Y : Obj C) : Type :=
-  PreHom X.1 Y.1
-
 namespace PreHom
 
 def id : ∀ {C : Cat} {X : PreObj C}, PreHom X X
@@ -283,7 +270,7 @@ def inl {C : Cat} {X Y : PreObj C} : PreHom X (Coprod X Y) :=
 def inr {C : Cat} {X Y : PreObj C} : PreHom Y (Coprod X Y) :=
   ofEmb Emb.inr
 
-def unit {C : Cat} {D : Cat} (F : Func C D) (H : HasLAdj F) {X : Obj D} : PreHom X (App F (LAdj F H X)) :=
+def unit {C : Cat} {D : Cat} (F : Func C D) (H : HasLAdj F) {X : PreObj D} : PreHom X (App F (LAdj F H X)) :=
   ofEmb (Emb.unit F H)
 
 def fst {C : Cat} {X Y : PreObj C} : PreHom (Prod X Y) X :=
@@ -336,10 +323,26 @@ def compRepr : ∀ {C : Cat} {X Y : PreObj C} {Z : ReprObj C}, PreHom (X : PreOb
   | _, _, _, _, f, HomRepr.radj F H g => HomRepr.radj _ _ (comp (map F f) g)
   | _, _, _, _, _, HomRepr.topMk => HomRepr.topMk
 
+def reprComp : ∀ {C : Cat} {X : PreObj C} {Y : ReprObj C} {Z : PreObj C},
+    HomRepr X Y → PreHom (PreObj.Repr Y) Z → PreHom X Z
+  | _, _, _, _, HomRepr.prod f g, projComp Proj.fst h => comp f h
+  | _, _, _, _, HomRepr.prod f g, projComp Proj.snd h => comp g h
+  | _, _, _, _, f, PreHom.repr g => repr (compRepr (repr f) g)
+  | _, _, _, _, f, compEmb g h => compEmb (reprComp f g) h
+
+def compCorepr : ∀ {C : Cat} {X : PreObj C} {Y : CoreprObj C} {Z : PreObj C},
+    PreHom X (PreObj.Corepr Y) → HomCorepr Y Z → PreHom X Z
+  | _, _, _, _, compEmb f Emb.inl, HomCorepr.coprod g h => comp f g
+  | _, _, _, _, compEmb f Emb.inr, HomCorepr.coprod g h => comp f h
+  | _, _, _, _, PreHom.corepr f, g => corepr (coreprComp f (corepr g))
+  | _, _, _, _, projComp f g, h => projComp f (compCorepr g h)
+
 def comp : ∀ {C : Cat} {X Y Z : PreObj C} ,
     PreHom (X : PreObj C) Y → PreHom (Y : PreObj C) Z → PreHom (X : PreObj C) Z
   | _, _, _, _, PreHom.corepr f, g => corepr (coreprComp f g)
   | _, _, _, _, f, PreHom.repr g => repr (compRepr f g)
+  | _, _, PreObj.Repr Y, _, PreHom.repr f, g => reprComp f g
+  | _, _, PreObj.Corepr Y, _, f, PreHom.corepr g => compCorepr f g
   | _, W, Y, Z, PreHom.projComp (Y := X) f g, h =>
     have : size X + size Z < size W + size Z :=
       by linarith [size_lt_of_proj f]
@@ -348,21 +351,17 @@ def comp : ∀ {C : Cat} {X Y Z : PreObj C} ,
     have : size W + size Y < size W + size Z :=
       by linarith [size_lt_of_emb h]
     compEmb (f.comp g) h
-  | _, _, _, _, prod f g, projComp Proj.fst h => comp f h
-  | _, W, PreObj.Prod X Y, Z, prod f g, projComp Proj.snd h =>
-    have : size Y < 1 + size X + size Y := by linarith
-    comp g h
-  | _, _, _, _, compEmb f Emb.inl, coprod g h => f.comp g
-  | _, W, PreObj.Coprod X Y, Z, compEmb f Emb.inr, coprod g h =>
-    have : size Y < 1 + size X + size Y := by linarith
-    f.comp h
   | _, _, _, _, var f, var g => var (HomVar.comp f g)
   | _, _, _, _, map' F f, map' _ g => map' _ (comp f g)
-  | _, _, _, _, map' _ (projComp _ _), projComp (Proj.counit' _ _) _ => sorry  --New constructor
-  | _, _, _, _, map' _ (PreHom.repr (HomRepr.radj _ _ f)), projComp (Proj.counit' _ _) g => f.comp g
-  | _, _, _, _, map' _ (Hom.corepr HomCorepr.botMk), projComp (Proj.counit _ _) _ => sorry --Things must preserve coproducts in a stronger way.
-  | _, _, _, _, map' G (Hom.corepr (HomCorepr.ladj F H f)), projComp (Proj.counit _ _) g => sorry --New constructor
-  | _, _, _, _, _, _ => sorry
+  -- | _, _, _, _, map' _ (projComp _ _), projComp (Proj.counit' _ _) _ =>
+  --       sorry
+  -- | _, App' _ X, _, _, map' F (PreHom.repr (HomRepr.radj _ _ f)), projComp (Proj.counit' _ _) g =>
+  --   have : App' F X = App F X := sorry
+  --   by rw [this]; exact f.comp g
+  -- | _, _, _, _, map' _ (PreHom.corepr HomCorepr.botMk), projComp (Proj.counit' _ _) _ => sorry
+  --Things must preserve coproducts in a stronger way.
+  --| _, _, _, _, map' G (PreHom.corepr (HomCorepr.ladj F H f)), projComp (Proj.counit' _ _) g => sorry --New constructor
+  --| _, _, _, _, _, _ => sorry
 
 end
 termination_by comp C X Y Z f g => (size X + size Z, size Y, 1)
